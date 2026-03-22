@@ -1,8 +1,6 @@
 # SAP-project
 Document Version Control System (DVCS) designed for collaborative document management. Features include role-based access (Author, Reviewer, Reader, Admin), version history tracking, approval workflows, and client-server architecture. Developed as part of a SAP course project.
 
-# Google Gemini
-
 ## 📝 Описание на проекта
 
 В много организации се работи с документи, които претърпяват чести промени от множество потребители. Липсата на контрол води до загуба на информация и объркване относно това коя е последната актуална версия.
@@ -64,6 +62,5 @@ Document Version Control System (DVCS) designed for collaborative document manag
 
 ## 🚀 Стартиране на приложението
 
-1. Клонирайте репозиториото:  
 ```bash
 git clone https://github.com/vashiya-potrebitel/SAP-project.git
