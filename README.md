@@ -62,5 +62,3 @@ Document Version Control System (DVCS) designed for collaborative document manag
 
 ## 🚀 Стартиране на приложението
 
-```bash
-git clone https://github.com/vashiya-potrebitel/SAP-project.git
