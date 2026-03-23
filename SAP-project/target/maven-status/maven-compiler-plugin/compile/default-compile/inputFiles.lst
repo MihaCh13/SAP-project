@@ -1,0 +1,15 @@
+/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/Main.java
+/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/entities/AuditLog.java
+/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/entities/CommentEntity.java
+/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/entities/DocumentActiveVersion.java
+/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/entities/DocumentEntity.java
+/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/entities/RoleEntity.java
+/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/entities/UserEntity.java
+/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/entities/VersionEntity.java
+/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/enums/Role.java
+/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/enums/Status.java
+/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/models/Document.java
+/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/models/User.java
+/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/models/Version.java
+/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/services/UserService.java
+/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/services/WorkflowService.java
