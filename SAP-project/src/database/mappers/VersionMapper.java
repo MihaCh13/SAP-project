@@ -1,6 +1,6 @@
-package backend.mappers;
+package database.mappers;
 
-import backend.entities.VersionEntity;
+import database.entities.VersionEntity;
 import backend.models.Version;
 
 public class VersionMapper {
