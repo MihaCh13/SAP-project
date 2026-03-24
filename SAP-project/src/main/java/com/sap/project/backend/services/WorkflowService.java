@@ -52,17 +52,23 @@ public class WorkflowService {
     }
 
     // 2. Редактиране на съществуващ документ (Създаване на V2, V3...)
-    public Version editDocument(User user, Document document, int newVersionId, int newVersionNumber, String newContent, int parentVersionId) {
-        if (user == null || document == null) throw new IllegalArgumentException("Error: Invalid data.");
-
+    public Version editDocument(User user, Document document, Version parentVersion, int newVersionId, int newVersionNumber, String newContent) {
+        if (user == null || document == null || parentVersion == null) {
+            throw new IllegalArgumentException("Error: Invalid input data (User, Document, or ParentVersion is null).");
+        }
         // Проверка: Има ли роля Автор?
         if (!user.hasRole(Role.AUTHOR)) {
             throw new SecurityException("Error: Only users with the AUTHOR role can edit documents.");
         }
 
+        // ЛОГИЧЕСКА ДУПКА: Не позволяваме редакция, ако документът е "заключен" за преглед
+        if (parentVersion.getStatus() == Status.PENDING_REVIEW) {
+            throw new IllegalStateException("Error: Cannot create a new version while the current one is PENDING_REVIEW.");
+        }
+
         // БЕЗ ПРОВЕРКА ЗА СОБСТВЕНОСТ: Позволяваме на авторите взаимно да си редактират документите!
         // Генерираме новата чернова, като създател на ТАЗИ ВЕРСИЯ е текущият потребител.
-        return new Version(newVersionId, document.getId(), newVersionNumber, newContent, user.getId(), parentVersionId);
+        return new Version(newVersionId, document.getId(), newVersionNumber, newContent, user.getId(), parentVersion.getId());
     }
 
     // 3. Изпращане за преглед
@@ -81,8 +87,12 @@ public class WorkflowService {
             throw new SecurityException("Error: You cannot submit someone else's documents for review.");
         }
 
-        // Действие: Сменяме статуса чрез логиката на самата версия
-        version.submitForReview();
+        // ПРОВЕРКА НА СТАТУС: Само Draft може да ходи към Review
+        if (version.getStatus() != Status.DRAFT) {
+            throw new IllegalStateException("Error: Only versions in DRAFT status can be submitted for review.");
+        }
+
+        version.submitForReview(); // Тук статусът става PENDING_REVIEW
     }
 
     // 4. Одобряване на документ
@@ -99,6 +109,11 @@ public class WorkflowService {
         // Проверка 2: Конфликт на интереси - не можеш да одобряваш свой собствен документ
         if (user.getId() == version.getCreatedBy()) {
             throw new SecurityException("Error: You cannot approve your own document, even if you have reviewer permissions!");
+        }
+
+        // НОВА ЛОГИКА ЗА СТАТУС:
+        if (version.getStatus() != Status.PENDING_REVIEW) {
+            throw new IllegalStateException("Error: Only versions in PENDING_REVIEW status can be approved.");
         }
 
         // Действие: Одобряваме версията (това сменя статуса и записва кой го е одобрил)
@@ -124,20 +139,34 @@ public class WorkflowService {
             throw new SecurityException("Error: You cannot reject your own edit!");
         }
 
+        // Логика за статус
+        if (version.getStatus() != Status.PENDING_REVIEW) {
+            throw new IllegalStateException("Error: Only versions in PENDING_REVIEW status can be rejected.");
+        }
+
         // Действие: Отхвърляме версията
         version.reject();
     }
 
     // 6. Четене на документ (За Читатели)
     public void viewVersion(User user, Version version) {
-        if (user == null || version == null) throw new IllegalArgumentException("Error: Invalid data.");
-
+        if (user == null || version == null) {
+            throw new IllegalArgumentException("Error: Invalid data.");
+        }
         // Ако потребителят е САМО читател (няма права на Автор или Рецензент),
         // той може да чете САМО одобрени версии!
+        // Правило 1: Читателите виждат САМО одобрени неща
         boolean isOnlyReader = user.hasRole(Role.READER) && !user.hasRole(Role.AUTHOR) && !user.hasRole(Role.REVIEWER) && !user.hasRole(Role.ADMIN);
-
         if (isOnlyReader && version.getStatus() != Status.APPROVED) {
-            throw new SecurityException("Error: Readers only have access to officially approved versions of the document.");
+            throw new SecurityException("Error: Readers only have access to officially APPROVED versions.");
+        }
+
+        // Правило 2: Ако версията е REJECTED, само Авторът и Рецензентът (или Админът) могат да я виждат
+        if (version.getStatus() == Status.REJECTED) {
+            boolean hasAccess = user.getId() == version.getCreatedBy() || user.hasRole(Role.REVIEWER) || user.hasRole(Role.ADMIN);
+            if (!hasAccess) {
+                throw new SecurityException("Error: Access denied. REJECTED versions are only visible to the owner and reviewers.");
+            }
         }
 
         // Ако стигнем дотук, потребителят има право да чете документа (ще върнем съдържанието към конзолата)
