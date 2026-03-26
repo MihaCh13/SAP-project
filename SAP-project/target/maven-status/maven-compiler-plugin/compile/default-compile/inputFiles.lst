@@ -1,15 +1,21 @@
-/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/Main.java
-/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/entities/AuditLog.java
-/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/entities/CommentEntity.java
-/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/entities/DocumentActiveVersion.java
-/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/entities/DocumentEntity.java
-/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/entities/RoleEntity.java
-/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/entities/UserEntity.java
-/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/entities/VersionEntity.java
-/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/enums/Role.java
-/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/enums/Status.java
-/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/models/Document.java
-/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/models/User.java
-/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/models/Version.java
-/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/services/UserService.java
-/Users/student/Documents/TU_Practicum/SAP-project/SAP-project/src/backend/services/WorkflowService.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\Main.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\database\repositories\VersionRepository.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\database\mappers\VersionMapper.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\backend\services\WorkflowService.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\database\entities\RoleEntity.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\backend\models\User.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\database\mappers\UserMapper.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\database\entities\AuditLog.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\database\entities\VersionEntity.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\backend\services\UserService.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\database\repositories\UserRepository.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\database\entities\UserEntity.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\database\entities\CommentEntity.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\backend\enums\Status.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\backend\models\Document.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\controllers\DocumentController.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\database\entities\DocumentEntity.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\backend\enums\Role.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\backend\models\Version.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\database\repositories\DocumentRepository.java
+C:\Users\sammi\OneDrive\Работен плот\SAP - project\SAP-project\src\main\java\com\sap\project\database\entities\DocumentActiveVersion.java
