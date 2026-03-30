@@ -1,174 +1,209 @@
 package com.sap.project.backend.services;
 
+import com.sap.project.database.entities.DocumentActiveVersion;
+import com.sap.project.database.repositories.DocumentActiveVersionRepository;
+
 import com.sap.project.backend.enums.Role;
 import com.sap.project.backend.enums.Status;
-import com.sap.project.backend.models.Document;
 import com.sap.project.backend.models.User;
-import com.sap.project.backend.models.Version;
+import com.sap.project.database.entities.CommentEntity;
+import com.sap.project.database.entities.DocumentEntity;
+import com.sap.project.database.entities.VersionEntity;
+import com.sap.project.database.repositories.CommentRepository;
 import com.sap.project.database.repositories.DocumentRepository;
+import com.sap.project.database.repositories.UserRepository;
 import com.sap.project.database.repositories.VersionRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+
 
 @Service
-
+@Transactional // ГАРАНТИРА: Или всичко се записва в базата, или нищо!
 public class WorkflowService {
 
-    // Връзки към базата данни
+    // Връзки към всички необходими таблици
     private final DocumentRepository documentRepository;
     private final VersionRepository versionRepository;
+    private final UserRepository userRepository;
+    private final CommentRepository commentRepository;
+    private final DocumentActiveVersionRepository activeVersionRepository;
 
-    // Конструктор за Dependency Injection - Spring ще ни ги "достави" автоматично
-    public WorkflowService(DocumentRepository documentRepository, VersionRepository versionRepository) {
+    public WorkflowService(DocumentRepository documentRepository,
+                           VersionRepository versionRepository,
+                           UserRepository userRepository,
+                           CommentRepository commentRepository,
+                           DocumentActiveVersionRepository activeVersionRepository) { // <-- ДОБАВЕНО
         this.documentRepository = documentRepository;
         this.versionRepository = versionRepository;
+        this.userRepository = userRepository;
+        this.commentRepository = commentRepository;
+        this.activeVersionRepository = activeVersionRepository;
     }
 
-    // 1. Създаване на нов документ и първата му чернова
-    public Document createDocument(User user, int documentId, String title, String description, String content) {
-        // ЗАЩИТА: Проверка за валидни входни обекти
-        if (user == null) {
-            throw new IllegalArgumentException("Error: The system cannot identify the user (null).");
-        }
-
-        // Проверка: Дали потребителят притежава роля AUTHOR
+    // 1. Създаване на нов документ
+    public void createDocument(User user, String title, String description, String content) {
+        if (user == null) throw new IllegalArgumentException("Error: User is null.");
         if (!user.hasRole(Role.AUTHOR)) {
             throw new SecurityException("Error: Only users with the AUTHOR role can create documents.");
         }
 
-        // Създаваме контейнера за документа
-        Document newDocument = new Document(documentId, title, description, user.getId());
+        // Записваме Документа в базата
+        DocumentEntity docEntity = new DocumentEntity();
+        docEntity.setTitle(title);
+        docEntity.setDescription(description);
+        docEntity.setCreatedBy(userRepository.getReferenceById(user.getId()));
+        docEntity.setCreatedAt(LocalDateTime.now());
+        docEntity = documentRepository.save(docEntity);
 
-        // Създаваме първата версия (чернова). versionId тук е примерно 1, parentVersionId e null
-        Version initialVersion = new Version(1, documentId, 1, content, user.getId(), null);
-
-        // Вече можем да използваме хранилищата (repositories) за запис, когато сме готови!
-        // Напр: documentRepository.save(...);
-
-        // Забележка: В реална среда тук ще се извика функцията на архитекта , за да запишем обектите във файла!
-        // Напр.: fileRepository.saveDocument(newDocument);
-        //        fileRepository.saveVersion(initialVersion);
-
-        return newDocument;
+        // Записваме първата Версия в базата
+        VersionEntity verEntity = new VersionEntity();
+        verEntity.setDocument(docEntity);
+        verEntity.setVersionNumber(1);
+        verEntity.setContent(content);
+        verEntity.setStatus(Status.DRAFT);
+        verEntity.setCreatedBy(userRepository.getReferenceById(user.getId()));
+        verEntity.setCreatedAt(LocalDateTime.now());
+        versionRepository.save(verEntity);
     }
 
-    // 2. Редактиране на съществуващ документ (Създаване на V2, V3...)
-    public Version editDocument(User user, Document document, Version parentVersion, int newVersionId, int newVersionNumber, String newContent) {
-        if (user == null || document == null || parentVersion == null) {
-            throw new IllegalArgumentException("Error: Invalid input data (User, Document, or ParentVersion is null).");
-        }
-        // Проверка: Има ли роля Автор?
+    // 2. Редактиране (Нова версия)
+    public void editDocument(User user, int parentVersionId, String newContent) {
         if (!user.hasRole(Role.AUTHOR)) {
             throw new SecurityException("Error: Only users with the AUTHOR role can edit documents.");
         }
 
-        // ЛОГИЧЕСКА ДУПКА: Не позволяваме редакция, ако документът е "заключен" за преглед
+        // Намираме старата версия от базата
+        VersionEntity parentVersion = versionRepository.findById(parentVersionId)
+                .orElseThrow(() -> new IllegalArgumentException("Error: Parent version not found."));
+
         if (parentVersion.getStatus() == Status.PENDING_REVIEW) {
             throw new IllegalStateException("Error: Cannot create a new version while the current one is PENDING_REVIEW.");
         }
 
-        // БЕЗ ПРОВЕРКА ЗА СОБСТВЕНОСТ: Позволяваме на авторите взаимно да си редактират документите!
-        // Генерираме новата чернова, като създател на ТАЗИ ВЕРСИЯ е текущият потребител.
-        return new Version(newVersionId, document.getId(), newVersionNumber, newContent, user.getId(), parentVersion.getId());
+        // Намираме общия брой версии на този документ до момента
+        int currentVersionCount = versionRepository.findByDocumentId(parentVersion.getDocument().getId()).size();
+
+        // Ако номерът на версията, която се опитват да редактират, е по-малък от общия брой, значи това е стара версия!
+        if (parentVersion.getVersionNumber() < currentVersionCount) {
+            throw new IllegalStateException("Error: You can only create a new draft from the latest active version.");
+        }
+
+        // Записваме новата версия
+        VersionEntity newVersion = new VersionEntity();
+        newVersion.setDocument(parentVersion.getDocument());
+        newVersion.setVersionNumber(currentVersionCount + 1);
+        newVersion.setContent(newContent);
+        newVersion.setStatus(Status.DRAFT);
+        newVersion.setCreatedBy(userRepository.getReferenceById(user.getId()));
+        newVersion.setCreatedAt(LocalDateTime.now());
+        newVersion.setParentVersion(parentVersion);
+        versionRepository.save(newVersion);
     }
 
     // 3. Изпращане за преглед
-    public void submitForReview(User user, Version version) {
-        if (user == null || version == null) {
-            throw new IllegalArgumentException("Error: User and version are required.");
-        }
+    public void submitForReview(User user, int versionId) {
+        VersionEntity version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new IllegalArgumentException("Error: Version not found."));
 
-        // Проверка: Дали потребителят притежава роля AUTHOR
         if (!user.hasRole(Role.AUTHOR)) {
-            throw new SecurityException("Error: Only users with the AUTHOR role can submit documents for review.");
+            throw new SecurityException("Error: Only authors can submit for review.");
         }
-
-        // Проверка: Дали този потребител е собственикът на версията
-        if (user.getId() != version.getCreatedBy()) {
-            throw new SecurityException("Error: You cannot submit someone else's documents for review.");
+        if (user.getId() != version.getCreatedBy().getId()) {
+            throw new SecurityException("Error: You cannot submit someone else's document.");
         }
-
-        // ПРОВЕРКА НА СТАТУС: Само Draft може да ходи към Review
         if (version.getStatus() != Status.DRAFT) {
-            throw new IllegalStateException("Error: Only versions in DRAFT status can be submitted for review.");
+            throw new IllegalStateException("Error: Only DRAFT versions can be submitted.");
         }
 
-        version.submitForReview(); // Тук статусът става PENDING_REVIEW
+        version.setStatus(Status.PENDING_REVIEW);
+        versionRepository.save(version);
     }
 
-    // 4. Одобряване на документ
-    public void approveDocument(User user, Version version, Document document) {
-        if (user == null || version == null || document == null) {
-            throw new IllegalArgumentException("Error: A valid user, version, and document are required for approval.");
-        }
+    // 4. Одобряване
+    public void approveDocument(User user, int versionId, String commentText) {
+        VersionEntity version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new IllegalArgumentException("Error: Version not found."));
 
-        // Проверка 1: Дали потребителят притежава роля REVIEWER
         if (!user.hasRole(Role.REVIEWER)) {
-            throw new SecurityException("Error: Only users with the REVIEWER role can approve documents.");
+            throw new SecurityException("Error: Only REVIEWER role can approve.");
         }
-
-        // Проверка 2: Конфликт на интереси - не можеш да одобряваш свой собствен документ
-        if (user.getId() == version.getCreatedBy()) {
-            throw new SecurityException("Error: You cannot approve your own document, even if you have reviewer permissions!");
+        if (user.getId() == version.getCreatedBy().getId()) {
+            throw new SecurityException("Error: You cannot approve your own document!");
         }
-
-        // НОВА ЛОГИКА ЗА СТАТУС:
         if (version.getStatus() != Status.PENDING_REVIEW) {
-            throw new IllegalStateException("Error: Only versions in PENDING_REVIEW status can be approved.");
+            throw new IllegalStateException("Error: Only PENDING_REVIEW status can be approved.");
         }
 
-        // Действие: Одобряваме версията (това сменя статуса и записва кой го е одобрил)
-        version.approve(user.getId());
+        version.setStatus(Status.APPROVED);
+        version.setApprovedBy(userRepository.getReferenceById(user.getId()));
+        version.setApprovedAt(LocalDateTime.now());
+        versionRepository.save(version);
 
-        // Действие: Обновяваме документа, че това вече е активната му версия
-        document.setActiveVersionId(version.getId());
+        // Запазваме коментара
+        saveComment(user.getId(), version, commentText);
+
+        DocumentActiveVersion activeVersion = activeVersionRepository.findById(version.getDocument().getId())
+                .orElse(new DocumentActiveVersion());
+
+        activeVersion.setDocument(version.getDocument());
+        activeVersion.setVersion(version);
+        activeVersion.setActivatedAt(LocalDateTime.now());
+        activeVersionRepository.save(activeVersion);// Записваме в таблицата за активни версии
     }
 
-    // 5. Отхвърляне на документ
-    public void rejectDocument(User user, Version version) {
-        if (user == null || version == null) {
-            throw new IllegalArgumentException("Error: A valid user and version are required for rejection.");
-        }
+    // 5. Отхвърляне
+    public void rejectDocument(User user, int versionId, String commentText) {
+        VersionEntity version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new IllegalArgumentException("Error: Version not found."));
 
-        // Проверка 1: Дали потребителят притежава роля REVIEWER
         if (!user.hasRole(Role.REVIEWER)) {
-            throw new SecurityException("Error: Only users with the REVIEWER role can reject documents.");
+            throw new SecurityException("Error: Only REVIEWER role can reject.");
         }
-
-        // Проверка 2: Не можеш да отхвърляш свой собствен документ
-        if (user.getId() == version.getCreatedBy()) {
-            throw new SecurityException("Error: You cannot reject your own edit!");
+        if (user.getId() == version.getCreatedBy().getId()) {
+            throw new SecurityException("Error: You cannot reject your own work!");
         }
-
-        // Логика за статус
         if (version.getStatus() != Status.PENDING_REVIEW) {
-            throw new IllegalStateException("Error: Only versions in PENDING_REVIEW status can be rejected.");
+            throw new IllegalStateException("Error: Only PENDING_REVIEW status can be rejected.");
         }
 
-        // Действие: Отхвърляме версията
-        version.reject();
+        version.setStatus(Status.REJECTED);
+        versionRepository.save(version);
+
+        // Запазваме коментара
+        saveComment(user.getId(), version, commentText);
     }
 
-    // 6. Четене на документ (За Читатели)
-    public void viewVersion(User user, Version version) {
-        if (user == null || version == null) {
-            throw new IllegalArgumentException("Error: Invalid data.");
+    // Помощен метод за записване на коментари
+    private void saveComment(int userId, VersionEntity version, String commentText) {
+        if (commentText != null && !commentText.trim().isEmpty()) {
+            CommentEntity comment = new CommentEntity();
+            comment.setVersion(version);
+            comment.setUser(userRepository.getReferenceById(userId));
+            comment.setCommentText(commentText);
+            comment.setCreatedAt(LocalDateTime.now());
+            commentRepository.save(comment);
         }
-        // Ако потребителят е САМО читател (няма права на Автор или Рецензент),
-        // той може да чете САМО одобрени версии!
-        // Правило 1: Читателите виждат САМО одобрени неща
+    }
+
+    // 6. Четене на документ
+    public VersionEntity viewVersion(User user, int versionId) {
+        VersionEntity version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new IllegalArgumentException("Error: Version not found."));
+
         boolean isOnlyReader = user.hasRole(Role.READER) && !user.hasRole(Role.AUTHOR) && !user.hasRole(Role.REVIEWER) && !user.hasRole(Role.ADMIN);
         if (isOnlyReader && version.getStatus() != Status.APPROVED) {
             throw new SecurityException("Error: Readers only have access to officially APPROVED versions.");
         }
 
-        // Правило 2: Ако версията е REJECTED, само Авторът и Рецензентът (или Админът) могат да я виждат
         if (version.getStatus() == Status.REJECTED) {
-            boolean hasAccess = user.getId() == version.getCreatedBy() || user.hasRole(Role.REVIEWER) || user.hasRole(Role.ADMIN);
+            boolean hasAccess = user.getId() == version.getCreatedBy().getId() || user.hasRole(Role.REVIEWER) || user.hasRole(Role.ADMIN);
             if (!hasAccess) {
                 throw new SecurityException("Error: Access denied. REJECTED versions are only visible to the owner and reviewers.");
             }
         }
 
-        // Ако стигнем дотук, потребителят има право да чете документа (ще върнем съдържанието към конзолата)
+        return version; // Връщаме обекта, за да може API-то да го покаже!
     }
 }
