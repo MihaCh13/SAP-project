@@ -3,6 +3,7 @@ package com.sap.project.backend.services;
 import com.sap.project.database.entities.DocumentActiveVersion;
 import com.sap.project.database.repositories.DocumentActiveVersionRepository;
 
+<<<<<<< Updated upstream
 import com.sap.project.backend.enums.Role;
 import com.sap.project.backend.enums.Status;
 import com.sap.project.backend.models.User;
@@ -18,6 +19,21 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
+=======
+import com.sap.project.database.entities.*;
+import com.sap.project.database.repositories.*;
+
+import com.sap.project.backend.enums.Role;
+import com.sap.project.backend.enums.Status;
+import com.sap.project.backend.models.User;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.io.ByteArrayOutputStream;
+import java.time.LocalDateTime;
+import java.util.List;
+>>>>>>> Stashed changes
 
 @Service
 @Transactional // ГАРАНТИРА: Или всичко се записва в базата, или нищо!
@@ -29,17 +45,32 @@ public class WorkflowService {
     private final UserRepository userRepository;
     private final CommentRepository commentRepository;
     private final DocumentActiveVersionRepository activeVersionRepository;
+<<<<<<< Updated upstream
 
+=======
+    private final NotificationRepository notificationRepository;
+
+    @Autowired
+>>>>>>> Stashed changes
     public WorkflowService(DocumentRepository documentRepository,
                            VersionRepository versionRepository,
                            UserRepository userRepository,
                            CommentRepository commentRepository,
+<<<<<<< Updated upstream
                            DocumentActiveVersionRepository activeVersionRepository) { // <-- ДОБАВЕНО
+=======
+                           DocumentActiveVersionRepository activeVersionRepository,
+                           NotificationRepository notificationRepository) {
+>>>>>>> Stashed changes
         this.documentRepository = documentRepository;
         this.versionRepository = versionRepository;
         this.userRepository = userRepository;
         this.commentRepository = commentRepository;
         this.activeVersionRepository = activeVersionRepository;
+<<<<<<< Updated upstream
+=======
+        this.notificationRepository = notificationRepository;
+>>>>>>> Stashed changes
     }
 
     // 1. Създаване на нов документ
@@ -55,6 +86,10 @@ public class WorkflowService {
         docEntity.setDescription(description);
         docEntity.setCreatedBy(userRepository.getReferenceById(user.getId()));
         docEntity.setCreatedAt(LocalDateTime.now());
+<<<<<<< Updated upstream
+=======
+        docEntity.setActive(true);
+>>>>>>> Stashed changes
         docEntity = documentRepository.save(docEntity);
 
         // Записваме първата Версия в базата
@@ -83,7 +118,12 @@ public class WorkflowService {
         }
 
         // Намираме общия брой версии на този документ до момента
+<<<<<<< Updated upstream
         int currentVersionCount = versionRepository.findByDocumentId(parentVersion.getDocument().getId()).size();
+=======
+        List<VersionEntity> allVersions = versionRepository.findByDocumentId(parentVersion.getDocument().getId());
+        int currentVersionCount = allVersions.size();
+>>>>>>> Stashed changes
 
         // Ако номерът на версията, която се опитват да редактират, е по-малък от общия брой, значи това е стара версия!
         if (parentVersion.getVersionNumber() < currentVersionCount) {
@@ -150,7 +190,15 @@ public class WorkflowService {
         activeVersion.setDocument(version.getDocument());
         activeVersion.setVersion(version);
         activeVersion.setActivatedAt(LocalDateTime.now());
+<<<<<<< Updated upstream
         activeVersionRepository.save(activeVersion);// Записваме в таблицата за активни версии
+=======
+        activeVersionRepository.save(activeVersion); // Записваме в таблицата за активни версии
+
+        // ПРАЩАМЕ ИЗВЕСТИЕ (Добавката от колегата)
+        sendNotification(version.getCreatedBy(),
+                "Good news! Your document '" + version.getDocument().getTitle() + "' (V" + version.getVersionNumber() + ") was APPROVED.");
+>>>>>>> Stashed changes
     }
 
     // 5. Отхвърляне
@@ -173,6 +221,7 @@ public class WorkflowService {
 
         // Запазваме коментара
         saveComment(user.getId(), version, commentText);
+<<<<<<< Updated upstream
     }
 
     // Помощен метод за записване на коментари
@@ -187,6 +236,14 @@ public class WorkflowService {
         }
     }
 
+=======
+
+        // ПРАЩАМЕ ИЗВЕСТИЕ (Добавката от колегата)
+        sendNotification(version.getCreatedBy(),
+                "Attention: Your document '" + version.getDocument().getTitle() + "' (V" + version.getVersionNumber() + ") was REJECTED.");
+    }
+
+>>>>>>> Stashed changes
     // 6. Четене на документ
     public VersionEntity viewVersion(User user, int versionId) {
         VersionEntity version = versionRepository.findById(versionId)
@@ -205,5 +262,55 @@ public class WorkflowService {
         }
 
         return version; // Връщаме обекта, за да може API-то да го покаже!
+<<<<<<< Updated upstream
+=======
+    }
+
+    // --- ПОМОЩНИ МЕТОДИ ---
+
+    // Помощен метод за записване на коментари
+    private void saveComment(int userId, VersionEntity version, String commentText) {
+        if (commentText != null && !commentText.trim().isEmpty()) {
+            CommentEntity comment = new CommentEntity();
+            comment.setVersion(version);
+            comment.setUser(userRepository.getReferenceById(userId));
+            comment.setCommentText(commentText);
+            comment.setCreatedAt(LocalDateTime.now());
+            commentRepository.save(comment);
+        }
+    }
+
+    private void sendNotification(UserEntity recipient, String message) {
+        NotificationEntity notif = new NotificationEntity();
+        notif.setUser(recipient);
+        notif.setMessage(message);
+        notif.setRead(false);
+        notif.setCreatedAt(LocalDateTime.now());
+        notificationRepository.save(notif);
+    }
+
+    // --- ЕКСПОРТ ФУНКЦИИ ---
+
+    public String exportVersionToText(VersionEntity vEntity) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("=== SAP DOCUMENT EXPORT ===\n");
+        sb.append("Title: ").append(vEntity.getDocument().getTitle()).append("\n");
+        sb.append("Version №: ").append(vEntity.getVersionNumber()).append("\n");
+        sb.append("Status: ").append(vEntity.getStatus()).append("\n");
+        sb.append("Content:\n").append(vEntity.getContent()).append("\n");
+        return sb.toString();
+    }
+
+    public byte[] exportVersionToPdf(VersionEntity vEntity) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        com.lowagie.text.Document document = new com.lowagie.text.Document(com.lowagie.text.PageSize.A4);
+        com.lowagie.text.pdf.PdfWriter.getInstance(document, out);
+        document.open();
+        document.add(new com.lowagie.text.Paragraph("SAP DOCUMENT REPORT"));
+        document.add(new com.lowagie.text.Paragraph("Title: " + vEntity.getDocument().getTitle()));
+        document.add(new com.lowagie.text.Paragraph("Content: " + vEntity.getContent()));
+        document.close();
+        return out.toByteArray();
+>>>>>>> Stashed changes
     }
 }
