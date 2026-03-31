@@ -25,11 +25,6 @@
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
         </dependency>
-<<<<<<< Updated upstream
-    </dependencies>
-</project>
-=======
->>>>>>> Stashed changes
 
         <dependency>
             <groupId>com.github.librepdf</groupId>
