@@ -1,18 +1,19 @@
 package com.sap.project.controllers;
 
 import com.sap.project.backend.models.User;
-import com.sap.project.backend.models.Version;
-import com.sap.project.backend.models.Document;
-import com.sap.project.backend.enums.Role;
 import com.sap.project.backend.services.WorkflowService;
-import com.sap.project.database.repositories.VersionRepository;
+import com.sap.project.database.entities.UserEntity;
 import com.sap.project.database.entities.VersionEntity;
+import com.sap.project.database.mappers.UserMapper;
+import com.sap.project.database.repositories.UserRepository;
+import com.sap.project.database.repositories.VersionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
+@RestController
+@RequestMapping("/api/documents")
 public class DocumentController {
 
     @Autowired
@@ -21,45 +22,61 @@ public class DocumentController {
     @Autowired
     private VersionRepository versionRepository;
 
-    public List<VersionEntity> getDocumentHistory(Integer docId) {
+    @Autowired
+    private UserRepository userRepository;
+
+    /**
+     * Взема историята на версиите за даден документ.
+     */
+    @GetMapping("/{docId}/history")
+    public List<VersionEntity> getDocumentHistory(@PathVariable Integer docId) {
+        // Връщаме списък от версиите директно от репозиторито
         return versionRepository.findByDocumentId(docId);
     }
 
-    public String approveVersion(Integer versionId, String comment) {
+    /**
+     * Одобряване на версия.
+     * @param versionId - ID на версията, която трябва да се одобри
+     * @param userId - ID на потребителя (Рецензент), който извършва действието
+     * @param comment - Коментар към одобрението
+     */
+    @PostMapping("/approve")
+    public String approveVersion(
+            @RequestParam Integer versionId,
+            @RequestParam Integer userId,
+            @RequestParam String comment) {
 
-        VersionEntity vEntity = versionRepository.findById(versionId)
-                .orElseThrow(() -> new RuntimeException("Version not found with ID: " + versionId));
+        // 1. Намираме реалния потребител в базата данни (без хардкод!)
+        UserEntity reviewerEntity = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Потребителят с ID " + userId + " не е намерен."));
 
-        Document docModel = new Document(
-                vEntity.getDocument().getId(),
-                "Title from DB",
-                "Description from DB",
-                vEntity.getCreatedBy().getId()
-        );
+        // 2. Превръщаме Entity-то в модел чрез твоя UserMapper
+        User reviewerModel = UserMapper.toModel(reviewerEntity);
 
-        Version versionModel = new Version(
-                vEntity.getId(),
-                vEntity.getDocument().getId(),
-                vEntity.getVersionNumber(),
-                vEntity.getContent(),
-                vEntity.getCreatedBy().getId(),
-                vEntity.getParentVersion() != null ? vEntity.getParentVersion().getId() : null
-        );
+        // 3. Извикваме бизнес логиката.
+        // Твоят WorkflowService сам ще провери дали този потребител има роля REVIEWER.
+        workflowService.approveDocument(reviewerModel, versionId, comment);
 
+        return "Версията с ID " + versionId + " беше успешно одобрена от " + reviewerModel.getUsername() + ".";
+    }
 
-        Set<Role> reviewerRoles = new HashSet<>();
-        reviewerRoles.add(Role.REVIEWER);
+    /**
+     * Отхвърляне на версия.
+     */
+    @PostMapping("/reject")
+    public String rejectVersion(
+            @RequestParam Integer versionId,
+            @RequestParam Integer userId,
+            @RequestParam String comment) {
 
-        User reviewerModel = new User(
-                2,
-                "ReviewerAlpha",
-                "reviewer@sap.com",
-                "hashed_pass_123",
-                reviewerRoles
-        );
+        UserEntity reviewerEntity = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Потребителят с ID " + userId + " не е намерен."));
 
-        workflowService.approveDocument(reviewerModel, versionModel, docModel);
+        User reviewerModel = UserMapper.toModel(reviewerEntity);
 
-        return "Версията е одобрена успешно! Коментар: " + comment;
+        // Извикваме метода за отхвърляне
+        workflowService.rejectDocument(reviewerModel, versionId, comment);
+
+        return "Версията с ID " + versionId + " беше отхвърлена от " + reviewerModel.getUsername() + ".";
     }
 }
