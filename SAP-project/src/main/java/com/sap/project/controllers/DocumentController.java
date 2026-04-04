@@ -5,9 +5,11 @@ import com.sap.project.backend.enums.Role;
 import com.sap.project.backend.services.WorkflowService;
 import com.sap.project.database.entities.UserEntity;
 import com.sap.project.database.entities.VersionEntity;
+import com.sap.project.database.entities.DocumentEntity;
 import com.sap.project.database.mappers.UserMapper;
 import com.sap.project.database.repositories.UserRepository;
 import com.sap.project.database.repositories.VersionRepository;
+import com.sap.project.database.repositories.DocumentRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -15,8 +17,10 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/documents")
@@ -30,6 +34,33 @@ public class DocumentController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private DocumentRepository documentRepository;
+
+    // ==========================================
+    // --- 0. ВЗЕМАНЕ НА ВСИЧКИ ДОКУМЕНТИ (НОВО) ---
+    // ==========================================
+    @GetMapping
+    public ResponseEntity<?> getAllDocuments() {
+        try {
+            List<DocumentEntity> documents = documentRepository.findAll();
+
+            // ТУК Е РАЗЛИКАТА: Изрично казваме Map.<String, Object>of(...)
+            List<Map<String, Object>> response = documents.stream().map(doc -> Map.<String, Object>of(
+                    "ID", doc.getId(),
+                    "Title", doc.getTitle(),
+                    "Author", doc.getCreatedBy() != null ? doc.getCreatedBy().getUsername() : "Unknown",
+                    "Status", doc.isActive() ? "Active" : "Archived"
+            )).collect(Collectors.toList());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error fetching documents: " + e.getMessage());
+        }
+    }
 
     // --- 1. СЪЗДАВАНЕ НА ДОКУМЕНТ ---
     @PostMapping
@@ -199,18 +230,50 @@ public class DocumentController {
     }
 
     /**
-     * Помощен метод на колегата за филтриране кой какво вижда в историята.
+     * Помощен метод за филтриране кой какво вижда в историята.
      */
     private boolean canViewVersion(User user, VersionEntity v) {
+        // 1. АДМИН -  вижда всичко (включително REJECTED и DRAFT на други хора)
+        if (user.getRoles().contains(Role.ADMIN)) {
+            return true;
+        }
+
+        // 2. ЗАЩИТА ЗА READER - Ако потребителят е САМО Reader, спираме го веднага, ако версията не е одобрена
         boolean isOnlyReader = user.getRoles().contains(Role.READER) && user.getRoles().size() == 1;
         if (isOnlyReader && v.getStatus() != com.sap.project.backend.enums.Status.APPROVED) {
             return false;
         }
+
+        // 3. ОБЩ ДОСТЪП - Всички останали (Author, Reviewer, Reader с други роли) виждат APPROVED документи
+        if (v.getStatus() == com.sap.project.backend.enums.Status.APPROVED) {
+            return true;
+        }
+
+        // 4. СПЕЦИФИЧНА ЛОГИКА ЗА REJECTED (Отхвърлени)
         if (v.getStatus() == com.sap.project.backend.enums.Status.REJECTED) {
             boolean isOwner = v.getCreatedBy() != null && v.getCreatedBy().getId().equals(user.getId());
-            boolean isReviewerOrAdmin = user.getRoles().contains(Role.REVIEWER) || user.getRoles().contains(Role.ADMIN);
-            return isOwner || isReviewerOrAdmin;
+            boolean isReviewer = user.getRoles().contains(Role.REVIEWER);
+            // Отхвърлените се виждат само от собственика им или от Рецензент (за справка)
+            return isOwner || isReviewer;
         }
-        return true;
+
+        // 5. КОМБИНИРАНИ ПРАВА ЗА ОСТАНАЛИТЕ СТАТУСИ (DRAFT и PENDING_REVIEW)
+        boolean canView = false;
+
+        // А) Ако потребителят е AUTHOR - даваме достъп само ако версията е негова
+        if (user.getRoles().contains(Role.AUTHOR)) {
+            if (v.getCreatedBy() != null && v.getCreatedBy().getId().equals(user.getId())) {
+                canView = true;
+            }
+        }
+
+        // Б) Ако потребителят е REVIEWER - даваме достъп до всичко, което чака за одобрение
+        if (user.getRoles().contains(Role.REVIEWER)) {
+            if (v.getStatus() == com.sap.project.backend.enums.Status.PENDING_REVIEW) {
+                canView = true;
+            }
+        }
+
+        return canView;
     }
 }
