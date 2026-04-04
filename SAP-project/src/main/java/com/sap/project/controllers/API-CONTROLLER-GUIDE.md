@@ -1,58 +1,58 @@
-# 🚀 Документация на API Слоя (Controllers Layer)
+# 🚀 API Layer Documentation (Controllers Layer)
 
-Този документ описва работата на REST контролерите в системата. Те играят ролята на "мост" между външния свят (клиентските HTTP заявки) и вътрешната бизнес логика на нашето приложение (`Services`).
+This document describes the implementation of the REST controllers within the system. They act as a "bridge" between the external world (client HTTP requests) and the internal business logic of our application (`Services`).
 
 ---
 
 ## 1. DocumentController (`/api/documents`)
-Този контролер управлява жизнения цикъл на документите и техните версии.
+This controller manages the lifecycle of documents and their respective versions.
 
-### 📜 Извличане на История (`getDocumentHistory`)
-Този метод позволява на потребителя да види жизнения цикъл на един документ във времето.
-- **Вход:** `Integer docId` (Уникален идентификатор на документа) и `X-User-Id` хедър.
-- **Логика:** Използва `VersionRepository` за извличане на версиите, след което **филтрира** резултатите чрез метода `canViewVersion()` спрямо ролята на потребителя (напр. потребители с роля `READER` нямат достъп до неодобрени чернови).
-- **Резултат:** Връща форматиран и лесен за четене списък (JSON масив от обекти), съдържащ само най-важната метаинформация: Версия, Статус, Автор и Превю на текста (вместо целия тежък `VersionEntity`).
+### 📜 Fetch History (`getDocumentHistory`)
+This method allows users to view the lifecycle of a specific document over time.
+- **Input:** `Integer docId` (Unique document identifier) and `X-User-Id` header.
+- **Logic:** Utilizes `VersionRepository` to fetch versions, then **filters** the results via the `canViewVersion()` method based on the user's role (e.g., users with the `READER` role cannot access unapproved drafts).
+- **Result:** Returns a formatted and easy-to-read list (JSON array of objects) containing only essential metadata: Version, Status, Author, and Text Preview (instead of the entire heavy `VersionEntity`).
 
-### ✅ Одобрение на Версия (`approveVersion`)
-Критична функция, която задвижва работния процес (Workflow) напред.
-- **Вход:** `versionId` и текстов коментар.
-- **Процес:** 1. **Трансформация:** Превръща суровия `UserEntity` от базата данни в бизнес модел `User` чрез `UserMapper.toModel()`.
-  2. **Делегиране:** Предава изпълнението директно на `workflowService.approveDocument()`.
-  3. **Валидация:** Всички проверки за сигурност (дали потребителят има роля `REVIEWER`, дали не се опитва да одобри собствен документ) се извършват вътре в `WorkflowService`, за да се запази контролерът чист.
+### ✅ Approve Version (`approveVersion`)
+A critical function that drives the workflow forward.
+- **Input:** `versionId` and a text comment.
+- **Process:** 1. **Transformation:** Converts the raw `UserEntity` from the database into the `User` business model using `UserMapper.toModel()`.
+  1. **Delegation:** Passes the execution directly to `workflowService.approveDocument()`.
+  2. **Validation:** All security checks (whether the user has the `REVIEWER` role, whether they are attempting to approve their own document) are performed within `WorkflowService` to keep the controller clean.
 
-### 💾 Експорт на Документи (`/txt` и `/pdf`)
-- **Вход:** `versionId` на желаната версия.
-- **Логика:** Позволява изтегляне на документа в съответния файлов формат.
-- **Защита:** Преди експорта контролерът извиква `workflowService.viewVersion()`, за да гарантира, че заявителят има права за достъп до конкретната версия.
+### 💾 Document Export (`/txt` and `/pdf`)
+- **Input:** `versionId` of the desired version.
+- **Logic:** Allows downloading the document in the corresponding file format.
+- **Protection:** Before exporting, the controller invokes `workflowService.viewVersion()` to ensure the requester has access rights to that specific version.
 
 ---
 
 ## 2. UserController (`/api/users`)
-Управлява автентикацията и администрацията на потребители.
+Manages authentication and user administration.
 
-* **`POST /login`**: Приема `username` и `password`. Прави проверки за сигурност (дали акаунтът съществува и дали е активен) и връща `userId` заедно с притежаваните роли.
-* **`POST /register`**: Защитен ендпоинт (изисква `ADMIN` права). Създава нови потребители и им назначава стартови роли.
-* **`POST /add-role`**: Защитен ендпоинт. Добавя нови роли към съществуващи потребители и автоматично генерира системно известие до съответния потребител за новите му права.
+* **`POST /login`**: Accepts `username` and `password`. Performs security checks (account existence and active status) and returns the `userId` along with assigned roles.
+* **`POST /register`**: A protected endpoint (requires `ADMIN` privileges). Creates new users and assigns them initial roles.
+* **`POST /add-role`**: A protected endpoint. Adds new roles to existing users and automatically generates a system notification to the respective user regarding their new permissions.
 
 ---
 
 ## 3. NotificationController (`/api/notifications`)
-Управлява системните известия до потребителите.
+Manages system notifications for users.
 
-* **`GET /`**: Извлича всички непрочетени съобщения за подадения `X-User-Id`.
-* **Логика:** Автоматично извлича само текстовото съдържание на съобщенията и маркира `NotificationEntity` обектите като прочетени (`isRead = true`) в базата данни преди да ги върне на клиента.
-
----
-
-## 🏗️ Интеграция с другите слоеве
-
-| Слой | Компонент | Каква е ролята му тук? |
-| :--- | :--- | :--- |
-| **Persistence** | Repositories | Използват се за бързо директно четене на данни (хронология, потребители, известия) от базата. |
-| **Business** | `WorkflowService` | Поема изцяло тежката логика по валидация на статуси, одобрение, отхвърляне и генериране на PDF файлове. |
-| **Mappers** | `UserMapper` | Осигурява сигурен преход на данните чрез трансформиране на `UserEntity` (DB обект) в `User` (Бизнес модел). |
+* **`GET /`**: Retrieves all unread messages for the provided `X-User-Id`.
+* **Logic:** Automatically extracts only the text content of the messages and marks the `NotificationEntity` objects as read (`isRead = true`) in the database before returning them to the client.
 
 ---
 
-## 💡 Важно за разработчиците
-API слоят стриктно спазва принципа **Separation of Concerns (Разделяне на отговорностите)**. Контролерите **не мапват ръчно** сложни обекти и не извършват бизнес валидации (с изключение на базови проверки за `null` или празни полета в заявката). Те разчитат на мапъри за сигурно подаване на данни и делегират изпълнението на бизнес правилата към Service слоя. Това гарантира, че промени в структурата на базата данни няма да "счупят" директно бизнес логиката на приложението.
+## 🏗️ Integration with Other Layers
+
+| Layer           | Component         | Role in this context                                                                                  |
+|:----------------|:------------------|:------------------------------------------------------------------------------------------------------|
+| **Persistence** | Repositories      | Used for quick, direct data reads (history, users, notifications) from the database.                  |
+| **Business**    | `WorkflowService` | Handles all heavy business logic: status validation, approval, rejection, and PDF generation.         |
+| **Mappers**     | `UserMapper`      | Ensures secure data transition by transforming `UserEntity` (DB object) into `User` (Business model). |
+
+---
+
+## 💡 Important for Developers
+The API layer strictly adheres to the **Separation of Concerns** principle. Controllers **do not manually map** complex objects nor perform business validations (except for basic checks for `null` or empty fields in the request). They rely on mappers for secure data delivery and delegate the execution of business rules to the Service layer. This ensures that changes in the database structure will not directly "break" the application's business logic.

@@ -1,49 +1,49 @@
-# 🌐 Обща картина на Слой "База Данни" (Persistence Layer)
+# 🌐 Database Layer Overview (Persistence Layer)
 
-Този документ описва архитектурата, интеграцията и потока на данни в пакета `com.sap.project.database`. Слоят е проектиран да бъде независим модул, който обслужва бизнес логиката (Services), осигурявайки сигурност, проследимост и абсолютен интегритет на информацията.
-
----
-
-## 1. Архитектурен поток на данните
-В нашата система данните преминават през три нива на обработка в този пакет, следвайки стриктно принципа на разделяне на отговорностите (Separation of Concerns):
-
-1.  **Storage (Entities):** Представлява физическото описание на SQL таблиците (8 на брой) чрез JPA/Hibernate анотации.
-2.  **Access (Repositories):** Интерфейси (Spring Data JPA), които абстрахират SQL заявките и предоставят методи за достъп и манипулация на данните.
-3.  **Transformation (Mappers):** Логика, която изолира базата данни от бизнес моделите, превръщайки суровите записи в чисти Java обекти, готови за бизнес слоя.
+This document describes the architecture, integration, and data flow within the `com.sap.project.database` package. The layer is designed as an independent module that serves the business logic (Services), ensuring security, traceability, and absolute data integrity.
 
 ---
 
-## 2. Компоненти на пакета
+## 1. Architectural Data Flow
+In our system, data passes through three levels of processing within this package, strictly following the Separation of Concerns principle:
 
-### 🏗️ Entities (Субекти на данните)
-Дефинират логическата схема. Основните модули са:
-- **Управление на идентичността:** `UserEntity` и `RoleEntity` (Свързани чрез Many-to-Many).
-- **Версиониране на документи:** `DocumentEntity`, `VersionEntity` и оптимизиращата таблица `DocumentActiveVersion`.
-- **Комуникация и Одит:** `CommentEntity` (за обратна връзка от рецензенти), `NotificationEntity` (за системни известия) и `AuditLog` (за исторически запис на административни действия).
-
-### 🗄️ Repositories (Достъп до данни)
-Слоят съдържа 8 интерфейса, разширяващи `JpaRepository`. Използва се активно *Query Method Derivation* (напр. `findByUserIdAndIsReadFalse` в `NotificationRepository` или `findByDocumentId` във `VersionRepository`), което елиминира нуждата от ръчно писане на SQL и намалява риска от грешки.
-
-### 🔄 Mappers (Трансформация)
-Маперите (`UserMapper` и `VersionMapper`) гарантират, че бизнес логиката работи със защитени, плоски модели (Domain Models), а не с тежки, свързани към базата Hibernate обекти. Те се грижат и за *fallback* логиката (напр. автоматично назначаване на базова роля `READER` при грешка в данните).
+1.  **Storage (Entities):** Represents the physical description of the SQL tables (8 in total) via JPA/Hibernate annotations.
+2.  **Access (Repositories):** Interfaces (Spring Data JPA) that abstract SQL queries and provide methods for data access and manipulation.
+3.  **Transformation (Mappers):** Logic that isolates the database from the business models, converting raw records into clean Java objects ready for the business layer.
 
 ---
 
-## 3. Ключови механизми и защити
+## 2. Package Components
 
-### 🔗 Линейно версиониране и История
-Системата поддържа строго проследяване на версиите. Всеки запис в таблицата `versions` е свързан чрез `parent_version_id` със своя предшественик, образувайки верига от промени. Одобрението на версия автоматично я маркира в `document_active_versions` за светкавичен достъп (O(1) сложност при четене).
+### 🏗️ Entities (Data Objects)
+Define the logical schema. The core modules are:
+- **Identity Management:** `UserEntity` and `RoleEntity` (Linked via Many-to-Many).
+- **Document Versioning:** `DocumentEntity`, `VersionEntity`, and the optimization table `DocumentActiveVersion`.
+- **Communication and Audit:** `CommentEntity` (for reviewer feedback), `NotificationEntity` (for system notifications), and `AuditLog` (for the historical recording of administrative actions).
 
-### 🛡️ Ролева сигурност (RBAC)
-Чрез релационния модел между `UserEntity` и `RoleEntity`, базата данни поддържа сложни комбинации от права (AUTHOR, REVIEWER, ADMIN, READER), които се валидират в момента на мапиране към бизнес модела.
+### 🗄️ Repositories (Data Access)
+The layer contains 8 interfaces extending `JpaRepository`. It actively utilizes *Query Method Derivation* (e.g., `findByUserIdAndIsReadFalse` in `NotificationRepository` or `findByDocumentId` in `VersionRepository`), which eliminates the need to write manual SQL and significantly reduces the risk of errors.
 
-### 🔔 Проследимост и Комуникация
-Интегритетът на процесите е подсигурен от `audit_logs` таблицата, която действа като "черна кутия" за действията на администраторите. Паралелно с това, `notifications` таблицата осигурява асинхронна комуникация между процесите и крайните потребители.
+### 🔄 Mappers (Transformation)
+Mappers (`UserMapper` and `VersionMapper`) guarantee that the business logic operates with secure, flat Domain Models, rather than heavy, database-bound Hibernate objects. They also handle the *fallback* logic (e.g., automatically assigning the base `READER` role in the event of a data error).
 
 ---
 
-## 🛠️ Правила за поддръжка и разработка
+## 3. Key Mechanisms and Safeguards
 
-- **Трансакционност:** Всички записи в базата данни се извършват в `@Transactional` контекст (управляван от Services слоя), за да се избегне частично записване на данни при възникване на грешка (Rollback).
-- **Неизменяемост (Immutability):** Версиите (`VersionEntity`) и Одит логовете (`AuditLog`) са концептуално неизменяеми. При нужда от промяна се записва нов ред (нова версия), а старите записи се пазят за историческа справка.
-- **Оптимизация:** Използва се предимно `Lazy Loading` за колекциите (за да не се претоварва паметта) и се разчита на базата данни за каскадни операции и уникални ограничения (Unique Constraints).
+### 🔗 Linear Versioning and History
+The system maintains strict version tracking. Every record in the `versions` table is linked via `parent_version_id` to its predecessor, forming a continuous chain of changes. Approving a version automatically marks it in `document_active_versions` for lightning-fast access (O(1) read complexity).
+
+### 🛡️ Role-Based Security (RBAC)
+Through the relational model between `UserEntity` and `RoleEntity`, the database supports complex combinations of permissions (AUTHOR, REVIEWER, ADMIN, READER), which are validated at the exact moment of mapping to the business model.
+
+### 🔔 Traceability and Communication
+Process integrity is secured by the `audit_logs` table, which acts as a "black box" for administrator actions. Concurrently, the `notifications` table ensures asynchronous communication between system processes and end-users.
+
+---
+
+## 🛠️ Maintenance and Development Guidelines
+
+- **Transactionality:** All database writes are executed within a `@Transactional` context (managed by the Services layer) to avoid partial data persistence in the event of an error (Rollback).
+- **Immutability:** Versions (`VersionEntity`) and Audit Logs (`AuditLog`) are conceptually immutable. When a change is required, a new row (a new version) is inserted, and the old records are preserved for historical reference.
+- **Optimization:** `Lazy Loading` is predominantly used for collections (to prevent memory overloading), and the system relies on the database for cascade operations and Unique Constraints.

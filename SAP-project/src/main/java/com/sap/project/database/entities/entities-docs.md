@@ -1,76 +1,76 @@
-# 🗄️ Документация на Персистентния Слой (JPA Entities)
+# 🗄️ Persistence Layer Documentation (JPA Entities)
 
-Този документ предоставя детайлно техническо описание на обектите в базата данни (Entities), техните връзки (Relations) и системните правила за интегритет на данните, управлявани чрез Hibernate/JPA.
+This document provides a detailed technical description of the database objects (Entities), their relations, and the system rules for data integrity managed via Hibernate/JPA.
 
 ---
 
-## 1. Схема "Потребители и Сигурност"
+## 1. "Users and Security" Schema
 
 ### 👤 UserEntity (`users`)
-Основен обект за съхранение на идентичността на потребителите.
-- **Идентификация:** Автоматично генерирано `Integer id`.
-- **Уникалност:** Полетата `username` и `email` са със строги ограничения за уникалност и максимална дължина (съответно 50 и 100 символа).
-- **Сигурност:** Паролите се съхраняват криптирани в полето `password_hash`. Поддържа се логическо изтриване чрез флаг `is_active`.
-- **Релации:**
-  - `@ManyToMany`: Свързан с `RoleEntity` чрез таблица `user_roles`. Това позволява на един потребител да притежава множество административни и функционални нива на достъп.
+The core object for storing user identity.
+- **Identification:** Automatically generated `Integer id`.
+- **Uniqueness:** The `username` and `email` fields have strict unique constraints and maximum lengths (50 and 100 characters respectively).
+- **Security:** Passwords are stored encrypted in the `password_hash` field. Soft deletion is supported via the `is_active` flag.
+- **Relations:**
+  - `@ManyToMany`: Linked to `RoleEntity` via the `user_roles` table. This allows a single user to possess multiple administrative and functional access levels.
 
 ### 🔑 RoleEntity (`roles`)
-Дефинира статичните нива на достъп.
-- **Полета:** `id`, `name` (unique).
-- **Цел:** Служи за филтриране на правата в бизнес логиката (RBAC - Role-Based Access Control).
+Defines the static access levels.
+- **Fields:** `id`, `name` (unique).
+- **Purpose:** Used for permission filtering in the business logic (RBAC - Role-Based Access Control).
 
 ---
 
-## 2. Схема "Документи и Версиониране"
+## 2. "Documents and Versioning" Schema
 
 ### 📄 DocumentEntity (`documents`)
-Контейнерът, който обединява всички версии на един документ.
-- **Полета:** `title`, `description` (TEXT), `is_active`, `created_at`.
-- **Релации:** - `@ManyToOne` към `UserEntity` (createdBy) - указва първоначалния автор.
+The container that aggregates all versions of a single document.
+- **Fields:** `title`, `description` (TEXT), `is_active`, `created_at`.
+- **Relations:** - `@ManyToOne` to `UserEntity` (createdBy) - indicates the original author.
 
 ### 📑 VersionEntity (`versions`)
-Съхранява конкретна итерация (редакция) на даден документ.
-- **Защита на ниво БД:** Използва `@UniqueConstraint(columnNames = {"document_id", "version_number"})`, което гарантира, че не може да има две версии с еднакъв номер за един и същи документ.
-- **Съдържание:** `content` се пази като тип `TEXT` за поддръжка на дълги стрингове.
-- **Релации:**
-  - `@ManyToOne` към `DocumentEntity`.
-  - `@ManyToOne` към `VersionEntity` (`parentVersion`) - позволява проследяване на дървото на промените.
-  - Връзки към `UserEntity` за `createdBy` (автор) и `approvedBy` (рецензент).
+Stores a specific iteration (revision) of a given document.
+- **DB-Level Protection:** Uses `@UniqueConstraint(columnNames = {"document_id", "version_number"})`, ensuring there cannot be two versions with the same number for the same document.
+- **Content:** `content` is stored as a `TEXT` type to support long strings.
+- **Relations:**
+  - `@ManyToOne` to `DocumentEntity`.
+  - `@ManyToOne` to `VersionEntity` (`parentVersion`) - allows tracking of the change tree.
+  - Links to `UserEntity` for `createdBy` (author) and `approvedBy` (reviewer).
 
 ### 📌 DocumentActiveVersion (`document_active_versions`)
-Специализирана свързваща таблица за бърз достъп до текущата официална версия.
-- **Ключ:** Използва `@OneToOne` с `@MapsId` към `DocumentEntity`, което означава, че първичният ключ е същият като на самия документ.
-- **Цел:** Сочи към точно една версия (`VersionEntity`), която в момента се счита за официално одобрена и активна.
+A specialized joining table for fast access to the current official version.
+- **Key:** Uses `@OneToOne` with `@MapsId` to `DocumentEntity`, meaning the primary key is the same as the document itself.
+- **Purpose:** Points to exactly one version (`VersionEntity`) that is currently considered officially approved and active.
 
 ---
 
-## 3. Схема "Комуникация, Одит и Известия"
+## 3. "Communication, Audit and Notifications" Schema
 
 ### 💬 CommentEntity (`comments`)
-Обратна връзка по време на преглед от рецензентите.
-- **Връзка:** Свързва се директно с `VersionEntity`. Коментарите са контекстуални за всяка конкретна редакция.
-- **Съдържание:** `comment_text` (тип TEXT) и връзка с автора на коментара (`UserEntity`).
+Feedback provided by reviewers during the review process.
+- **Relation:** Links directly to `VersionEntity`. Comments are contextual for each specific revision.
+- **Content:** `comment_text` (`TEXT` type) and a link to the comment's author (`UserEntity`).
 
 ### 📜 AuditLog (`audit_logs`)
-Пълен исторически запис на всяка административна транзакция в системата.
-- **Полета:**
-  - `user`: Кой администратор е извършил действието.
-  - `actionType`: Тип на действието (напр. "ACTIVATE_USER", "ADD_ROLE").
-  - `entityType` & `entityId`: Кой конкретен обект е бил засегнат.
-  - `details`: Допълнителна текстова информация за промяната.
-- **Време:** Автоматичен `timestamp` за всяко събитие.
+A comprehensive historical record of every administrative transaction in the system.
+- **Fields:**
+  - `user`: Which administrator performed the action.
+  - `actionType`: The type of action (e.g., "ACTIVATE_USER", "ADD_ROLE").
+  - `entityType` & `entityId`: Which specific object was affected.
+  - `details`: Additional text information regarding the change.
+- **Time:** Automatic `timestamp` for every event.
 
 ### 🔔 NotificationEntity (`notifications`)
-Система за асинхронно информиране на потребителите.
-- **Релации:** `@ManyToOne` към получателя (`UserEntity`).
-- **Полета:** `message` (текст на известието), `is_read` (флаг дали е прочетено), `created_at`.
+System for asynchronous user notifications.
+- **Relations:** `@ManyToOne` to the recipient (`UserEntity`).
+- **Fields:** `message` (the notification text), `is_read` (flag indicating if read), `created_at`.
 
 ---
 
-## ⚙️ Техническа Конфигурация (JPA/Hibernate)
+## ⚙️ Technical Configuration (JPA/Hibernate)
 
-| Характеристика | Стойност / Описание |
-| :--- | :--- |
-| **ID Generation** | `GenerationType.IDENTITY` (Auto-increment, управляван от базата данни). |
-| **Date/Time** | Използва се `LocalDateTime` (ISO стандартизирано и съвместимо с Hibernate 6+). |
-| **Cascade & Fetching** | Релациите са настроени оптимално (стандартно EAGER за ManyToOne), като се разчита на базата данни за управление на интегритета. |
+| Feature                | Value / Description                                                                                                  |
+|:-----------------------|:---------------------------------------------------------------------------------------------------------------------|
+| **ID Generation**      | `GenerationType.IDENTITY` (Auto-increment, managed by the database).                                                 |
+| **Date/Time**          | Uses `LocalDateTime` (ISO standardized and compatible with Hibernate 6+).                                            |
+| **Cascade & Fetching** | Relations are optimally configured (standard EAGER for ManyToOne), relying on the database for integrity management. |

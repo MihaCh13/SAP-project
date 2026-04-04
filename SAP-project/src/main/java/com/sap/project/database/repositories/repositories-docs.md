@@ -1,42 +1,42 @@
-# 🗄️ Документация на Репозитория (Data Access Layer)
+# 🗄️ Repository Documentation (Data Access Layer)
 
-Пакетът `com.sap.project.database.repositories` съдържа интерфейсите, които управляват директната комуникация с базата данни. Те разширяват `JpaRepository`, което предоставя вградени методи за CRUD операции (Create, Read, Update, Delete) без нужда от писане на ръчен SQL.
-
----
-
-## 1. Обща концепция
-
-Репозиториите работят директно с **Database Entities** и се използват от **Services** слоя чрез Dependency Injection (`@Autowired`). Всички методи тук се изпълняват в рамките на трансакция, осигурявайки интегритет на данните. Системата разчита силно на функцията *Query Method Derivation* на Spring Data JPA – автоматично генериране на SQL заявки на базата на името на метода.
+The `com.sap.project.database.repositories` package contains the interfaces that manage direct communication with the database. They extend `JpaRepository`, which provides built-in methods for CRUD (Create, Read, Update, Delete) operations without the need to write manual SQL.
 
 ---
 
-## 2. Описание на интерфейсите
+## 1. General Concept
 
-### 👤 Управление на Потребители и Роли
-* **`UserRepository`**: Отговаря за управлението на потребителските данни.
-  * *Custom Methods:* `findByUsername(String username)`, `findByEmail(String email)` (връщат `Optional`).
-* **`RoleRepository`**: Управлява системните нива на достъп (RBAC).
+The repositories work directly with **Database Entities** and are utilized by the **Services** layer via Dependency Injection (`@Autowired`). All methods here are executed within a transaction, ensuring data integrity. The system relies heavily on the *Query Method Derivation* feature of Spring Data JPA – automatically generating SQL queries based on the method name.
+
+---
+
+## 2. Interface Descriptions
+
+### 👤 User and Role Management
+* **`UserRepository`**: Responsible for managing user data.
+  * *Custom Methods:* `findByUsername(String username)`, `findByEmail(String email)` (returns `Optional`).
+* **`RoleRepository`**: Manages system access levels (RBAC).
   * *Custom Methods:* `findByName(String name)`.
 
-### 📄 Управление на Документи и Версии
-* **`DocumentRepository`**: Управлява метаданните на документите и техните глобални статуси (напр. архивиране).
-* **`VersionRepository`**: Управлява съдържанието и историята на версиите.
-  * *Custom Methods:* `findByDocumentId(Integer documentId)` – Извлича пълната история на версиите за конкретен документ.
-* **`DocumentActiveVersionRepository`**: Специализирано репозитори за бърз достъп до текущата официално одобрена версия на даден документ (работи с релацията `@MapsId`).
+### 📄 Document and Version Management
+* **`DocumentRepository`**: Manages document metadata and their global statuses (e.g., archiving).
+* **`VersionRepository`**: Manages the content and history of versions.
+  * *Custom Methods:* `findByDocumentId(Integer documentId)` – Retrieves the full version history for a specific document.
+* **`DocumentActiveVersionRepository`**: A specialized repository for quick access to the currently officially approved version of a given document (works with the `@MapsId` relation).
 
-### ⚙️ Комуникация и Одит
-* **`NotificationRepository`**: Управлява системните известия до потребителите.
-  * *Custom Methods:* `findByUserIdAndIsReadFalse(Integer userId)` – Намира всички непрочетени известия за даден потребител.
-* **`CommentRepository`**: Съхранява обратната връзка (коментарите) на рецензентите, обвързани към конкретна версия.
-* **`AuditLogRepository`**: Съхранява историческите записи за всяко критично административно действие в системата (кой, кога и какво е направил).
+### ⚙️ Communication and Audit
+* **`NotificationRepository`**: Manages system notifications for users.
+  * *Custom Methods:* `findByUserIdAndIsReadFalse(Integer userId)` – Finds all unread notifications for a given user.
+* **`CommentRepository`**: Stores reviewer feedback (comments) linked to a specific version.
+* **`AuditLogRepository`**: Stores historical records of every critical administrative action in the system (who did what and when).
 
 ---
 
-## 🛠️ Технически детайли за екипа
+## 🛠️ Technical Details for the Team
 
-| Функция | Описание |
-| :--- | :--- |
-| **Технология** | Spring Data JPA (Hibernate под капака) |
-| **База данни** | H2 Database (In-Memory за разработка) / Съвместимо със SQL бази |
-| **Query Logic** | Използва се *Query Derivation* – Spring автоматично превежда имена като `findByUserIdAndIsReadFalse` в точни и оптимизирани SQL `SELECT` заявки. |
-| **Entity Types** | Всички репозитории работят **само** със сурови `Entity` обекти. Трансформацията към бизнес модели (`Domain Models`) се случва в Controller/Service слоевете чрез мапъри. |
+| Feature          | Description                                                                                                                                                                |
+|:-----------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Technology**   | Spring Data JPA (Hibernate under the hood)                                                                                                                                 |
+| **Database**     | H2 Database (In-Memory for development) / SQL database compatible                                                                                                          |
+| **Query Logic**  | Uses *Query Derivation* – Spring automatically translates names like `findByUserIdAndIsReadFalse` into precise and optimized SQL `SELECT` queries.                         |
+| **Entity Types** | All repositories work **strictly** with raw `Entity` objects. The transformation to business models (`Domain Models`) occurs in the Controller/Service layers via mappers. |

@@ -1,53 +1,52 @@
-# ⚙️ Конфигурация: DataInitializer (Инициализация на данни)
+# ⚙️ Configuration: DataInitializer (Data Seeding)
 
-Пакетът `com.sap.project.config` съдържа конфигурационни класове за Spring Boot приложението. Най-важният от тях е `DataInitializer.java`, който служи за автоматично първоначално зареждане на данни (Data Seeding) в базата (H2) при всяко стартиране на сървъра.
+The `com.sap.project.config` package contains configuration classes for the Spring Boot application. The most important among them is `DataInitializer.java`, which serves to automatically populate the initial data (Data Seeding) into the database (H2) upon every server startup.
 
-Този клас е критичен за улесняване на локалната разработка, тестването на API ендпойнтите и подготовката на системата за демонстрация.
-
----
-
-## 🎯 Основни цели на DataInitializer
-
-1.  **Автоматизация:** Елиминира нуждата от ръчно писане на SQL скриптове за създаване на задължителните системни записи (напр. роли).
-2.  **Готовност за тестове:** Предоставя на API и QA екипа готови потребители с различни роли и подготвен работен процес за тестване.
-3.  **Идемпотентност (Безопасност):** Гарантира, че дори при многократни рестартирания на сървъра данните няма да се дублират или повредят.
+This class is critical for facilitating local development, testing API endpoints, and preparing the system for demonstration.
 
 ---
 
-## 🛠️ Какво се създава автоматично?
+## 🎯 Primary Goals of DataInitializer
 
-При стартиране на Spring Boot приложението се изпълняват следните стъпки:
+1.  **Automation:** Eliminates the need for writing manual SQL scripts to create mandatory system records (e.g., roles).
+2.  **Test Readiness:** Provides the API and QA teams with pre-configured users with diverse roles and a ready workflow for testing.
+3.  **Idempotence (Safety):** Guarantees that even with multiple server restarts, data will not be duplicated or corrupted.
 
-### 1. Системни Роли (Roles)
-Създават се четирите основни роли, ако вече не съществуват в таблицата `roles`:
+---
+
+## 🛠️ What is Automatically Created?
+
+Upon starting the Spring Boot application, the following steps are executed:
+
+### 1. System Roles
+The four core roles are created if they do not already exist in the `roles` table:
 * `ADMIN`
 * `REVIEWER`
 * `AUTHOR`
 * `READER`
 
-### 2. Тестови Потребители (Users)
-Създава се набор от потребители, покриващи всички възможни сценарии (чисти и комбинирани роли). Всички те се създават с хеширана парола и маркирани като активни (`isActive = true`).
+### 2. Test Users
+A set of users is created covering all possible scenarios (pure and combined roles). All of them are created with a hashed password and marked as active (`isActive = true`).
 
-| Username | Парола | Роли | Описание за тестване |
-| :--- | :--- | :--- | :--- |
-| **admin** | `pass123` | `ADMIN` | Тестване на `UserService` (добавяне/махане на роли). |
-| **reviewer** | `rev123` | `REVIEWER` | Тестване на одобряване и отхвърляне на версии. |
-| **author** | `auth123` | `AUTHOR` | Тестване на създаване на нови документи. |
-| **reader** | `read123` | `READER` | Тестване на защита при опит за четене на чернови. |
-| **lead_author** | `lead123` | `AUTHOR`, `REVIEWER` | Тестване на конфликт на интереси (не може да оценява себе си). |
-| **super_user** | `super123` | `ADMIN`, `AUTHOR`, `REVIEWER` | "Бог" в системата – има пълен достъп до всичко. |
+| Username        | Password   | Roles                         | Testing Description                                          |
+|:----------------|:-----------|:------------------------------|:-------------------------------------------------------------|
+| **admin**       | `pass123`  | `ADMIN`                       | Testing the `UserService` (assigning/revoking roles).        |
+| **reviewer**    | `rev123`   | `REVIEWER`                    | Testing the approval and rejection of versions.              |
+| **author**      | `auth123`  | `AUTHOR`                      | Testing the creation of new documents.                       |
+| **reader**      | `read123`  | `READER`                      | Testing safeguards when attempting to read drafts.           |
+| **lead_author** | `lead123`  | `AUTHOR`, `REVIEWER`          | Testing conflict of interest (cannot review their own work). |
+| **super_user**  | `super123` | `ADMIN`, `AUTHOR`, `REVIEWER` | "God" mode in the system – has full access to everything.    |
 
-### 3. Работен процес (Workflow Seeding)
-За да може API екипът веднага да тества одобряването на документи, се генерира:
-* Един тестов **Документ** с автор `author`.
-* Една начална **Версия (V1)** със статус `PENDING_REVIEW`, която вече очаква да бъде прегледана от рецензент.
+### 3. Workflow Seeding
+To allow the API team to immediately test document approval, the following is generated:
+* One test **Document** authored by `author`.
+* One initial **Version (V1)** with the status `PENDING_REVIEW`, which is already awaiting a reviewer's inspection.
 
 ---
 
-## 🛡️ Добри практики и Защити (Under the Hood)
+## 🛡️ Best Practices and Safeguards (Under the Hood)
 
-Кодът в `DataInitializer` прилага няколко важни технически стандарта:
+The code in `DataInitializer` applies several important technical standards:
 
-* **`@Transactional`:** Целият процес на инициализация е опакован в една трансакция. Ако възникне грешка по време на създаването на данните, цялата операция се отменя (Rollback), за да не остане базата в невалидно състояние.
-* **Safe Set Creation:** Използва се `new HashSet<>(Set.of(...))` при задаването на роли. Това гарантира, че колекцията с роли не е заключена (immutable) и администраторите могат динамично да добавят или премахват роли на тези тестови потребители в бъдеще.
-* **Smart Logging:** Извежда се агрегиран, красив репорт (`DATABASE INITIALIZATION SUMMARY`) в конзолата, чак след като всички SQL заявки са приключили, за максимална четимост.
+* **`@Transactional`:** The entire initialization process is wrapped in a single transaction. If an error occurs during data creation, the whole operation is rolled back to prevent the database from being left in an invalid state.
+* **Safe Set Creation:** Uses `new HashSet<>(Set.of(...))` when assigning roles. This ensures the role collection

@@ -1,33 +1,33 @@
-# 🔄 Поток на заявките (Request Lifecycle)
+# 🔄 Request Lifecycle
 
-Този документ обяснява как данните преминават през слоевете на системата от приемането на HTTP заявката до записването в базата данни.
+This document explains how data flows through the system's layers, from the reception of an HTTP request to its persistence in the database.
 
 ---
 
-## 🌊 Диаграма на процеса: "Одобрение на Документ"
+## 🌊 Process Flow: "Document Approval"
 
-Тази стъпка показва силата на разделената архитектура (Separation of Concerns) и как си взаимодействат слоевете:
+This step demonstrates the power of the separated architecture (Separation of Concerns) and how the layers interact:
 
-1. **Request (Client):** Потребител (Рецензент) изпраща `PUT` заявка към `/api/documents/versions/{versionId}/approve` с хедър `X-User-Id` и коментар.
+1. **Request (Client):** A user (Reviewer) sends a `PUT` request to `/api/documents/versions/{versionId}/approve` with an `X-User-Id` header and a comment.
 2. **Controller Layer (`DocumentController`):**
-    - Приема заявката и валидира базовите параметри.
-    - Извлича `UserEntity` от базата по подадения ID и го конвертира в бизнес модел чрез `UserMapper.toModel()`, за да защити данните.
-    - Делегира същинската работа на сервиза: `workflowService.approveDocument(reviewerModel, versionId, comment)`.
+   - Receives the request and validates the basic parameters.
+   - Retrieves the `UserEntity` from the database by the provided ID and converts it into a business model via `UserMapper.toModel()` to protect the data.
+   - Delegates the core execution to the service: `workflowService.approveDocument(reviewerModel, versionId, comment)`.
 3. **Service Layer (`WorkflowService`):**
-    - Стартира `@Transactional` блок (всичко успява или всичко се отменя при грешка).
-    - Извлича `VersionEntity` и свързания `DocumentEntity`.
-    - **Бизнес Валидация:** Проверява дали потребителят има роля `REVIEWER`, дали не е автор на същия документ и дали версията е в статус `PENDING_REVIEW`.
-    - Променя статуса на `APPROVED` и обновява активната версия на документа.
-    - Създава запис за коментара.
-    - Генерира системно известие (`NotificationEntity`) до автора.
-4. **Database Layer (H2 / Spring Data JPA):** Извършва всички `UPDATE` и `INSERT` заявки автоматично.
-5. **Response:** Контролерът хваща резултата и връща HTTP статус `200 OK` със съобщение за успех.
+   - Initiates a `@Transactional` block (all-or-nothing execution; rolls back on error).
+   - Extracts the `VersionEntity` and the associated `DocumentEntity`.
+   - **Business Validation:** Verifies that the user has the `REVIEWER` role, is not the author of the same document, and that the version is in the `PENDING_REVIEW` status.
+   - Changes the status to `APPROVED` and updates the active version of the document.
+   - Creates a record for the comment.
+   - Generates a system notification (`NotificationEntity`) for the author.
+4. **Database Layer (H2 / Spring Data JPA):** Automatically executes all `UPDATE` and `INSERT` queries.
+5. **Response:** The controller captures the result and returns an HTTP status `200 OK` with a success message.
 
 ---
 
-## 🛠️ Използвани технологии в интеграцията
+## 🛠️ Technologies Used in the Integration
 
-- **Dependency Injection (`@Autowired`):** Свързва контролерите със сървисите и репозиторитата, осигурявайки слаба свързаност (loose coupling).
-- **Мапъри (Mappers):** Изолират базата данни от бизнес логиката, осъществявайки сигурен преход на данни между `Entity` (Hibernate) и `Model` (Business Logic).
-- **Java Stream API:** Използва се активно в контролерите за ефективна обработка на колекции (например превръщане на списък от `NotificationEntity` в списък от `String` съобщения в `NotificationController`).
-- **Defensive API Design:** Хващане на изключения чрез `try-catch` блокове на ниво контролер и трансформирането им в подходящи HTTP статус кодове (`400 Bad Request`, `500 Internal Server Error`).
+- **Dependency Injection (`@Autowired`):** Connects controllers with services and repositories, ensuring loose coupling.
+- **Mappers:** Isolate the database from the business logic, facilitating a secure data transition between the `Entity` (Hibernate) and the `Model` (Business Logic).
+- **Java Stream API:** Actively used in controllers for the efficient processing of collections (e.g., transforming a list of `NotificationEntity` objects into a list of `String` messages in the `NotificationController`).
+- **Defensive API Design:** Catching exceptions via `try-catch` blocks at the controller level and transforming them into appropriate HTTP status codes (`400 Bad Request`, `500 Internal Server Error`).

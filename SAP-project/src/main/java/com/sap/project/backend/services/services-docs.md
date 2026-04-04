@@ -1,74 +1,74 @@
-# 🧠 Пакет: com.sap.project.backend.services
+# 🧠 Package: com.sap.project.backend.services
 
-Този пакет съдържа основната бизнес логика на приложението. Услугите (Services) са проектирани да бъдат **трансакционни** (`@Transactional`), защитени и напълно проследими чрез система за одит и история.
-Той е разделен на два основни компонента, които гарантират сигурността, правилния работен процес на документите и стриктното управление на потребителските права.
+This package contains the core business logic of the application. The Services are designed to be **transactional** (`@Transactional`), secure, and fully traceable via an audit and history system.
+It is divided into two main components that ensure security, proper document workflow, and strict management of user permissions.
 
 ---
-## 🛠️ Общи характеристики
-- **Сигурност:** Вградени проверки за роли и права на достъп при всяко действие.
-- **Одит и Проследимост:** Всяко критично действие се записва автоматично в таблицата `AuditLog`. Взетите решения от рецензентите се пазят заедно с детайлни коментари.
-- **Цялостност (Integrity):** Използване на базирани на ID методи за избягване на конфликти със състоянието на обектите.
-- **Автоматизация:** Интегрирана система за автоматични известия (Notifications) при промяна на статуса на документите.
+## 🛠️ General Characteristics
+- **Security:** Built-in checks for roles and access rights on every action.
+- **Audit and Traceability:** Every critical action is automatically recorded in the `AuditLog` table. Decisions made by reviewers are stored along with detailed comments.
+- **Integrity:** Use of ID-based methods to avoid conflicts with object states.
+- **Automation:** Integrated system for automatic notifications upon document status changes.
 
 ---
 
 ## 1. WorkflowService.java
-Управлява жизнения цикъл на документите, версиите, процеса на одобрение и експортирането на данни.
+Manages the lifecycle of documents, versions, the approval process, and data export.
 
-### 🔄 Жизнен цикъл на версиите
-Системата поддържа строго линейно версиониране:
-- **DRAFT**: Начално състояние. Само авторът може да го редактира.
-- **PENDING_REVIEW**: Документът е изпратен за одобрение. През това време е **забранен** за редакция.
-- **APPROVED / REJECTED**: Крайни състояния. Всяка следваща редакция генерира нова чернова (V+1).
+### 🔄 Version Lifecycle
+The system maintains strict linear versioning:
+- **DRAFT**: Initial state. Only the author can edit it.
+- **PENDING_REVIEW**: The document is submitted for approval. During this time, editing is **forbidden**.
+- **APPROVED / REJECTED**: Final states. Any subsequent edit generates a new draft (V+1).
 
-### 🔑 Ключови методи
-| Метод | Роля | Описание |
+### 🔑 Key Methods
+| Method | Role | Description |
 |:---|:---|:---|
-| `createDocument` | AUTHOR | Създава нов документ и неговата първа версия (V1) със статус `DRAFT`. |
-| `editDocument` | AUTHOR | Генерира нова версия (V+1). Блокира операцията, ако текущата версия все още се преглежда. |
-| `submitForReview` | AUTHOR | Изпраща черновата за преглед (сменя статуса на `PENDING_REVIEW`). |
-| `approveDocument` | REVIEWER | Одобрява версията, запазва коментар, задава я като "Активна" и праща известие на автора. |
-| `rejectDocument` | REVIEWER | Отхвърля версията, запазва причината (коментар) и изпраща известие на автора. |
-| `viewVersion` | ANY | Проверява правата: `READER` вижда само `APPROVED`, докато авторът вижда и своите `REJECTED`. |
-| `exportVersionToPdf / Txt`| ANY | Генерира физически файл (PDF или TXT) с данните на конкретната версия. |
+| `createDocument` | AUTHOR | Creates a new document and its first version (V1) with a `DRAFT` status. |
+| `editDocument` | AUTHOR | Generates a new version (V+1). Blocks the operation if the current version is still under review. |
+| `submitForReview` | AUTHOR | Submits the draft for review (changes status to `PENDING_REVIEW`). |
+| `approveDocument` | REVIEWER | Approves the version, saves a comment, sets it as "Active", and sends a notification to the author. |
+| `rejectDocument` | REVIEWER | Rejects the version, saves the reason (comment), and sends a notification to the author. |
+| `viewVersion` | ANY | Checks permissions: `READER` sees only `APPROVED`, while the author also sees their `REJECTED` versions. |
+| `exportVersionToPdf / Txt`| ANY | Generates a physical file (PDF or TXT) containing the data of a specific version. |
 
-### 🛡️ Бизнес защити
-- **Конфликт на интереси:** Авторът на документ не може да бъде негов рецензент (проверка в `approveDocument` и `rejectDocument`).
-- **Линейност:** Новата версия винаги се изчислява на база общия брой версии + 1 (не може да се презаписват стари версии).
+### 🛡️ Business Defenses
+- **Conflict of Interest:** The author of a document cannot act as its reviewer (checked in `approveDocument` and `rejectDocument`).
+- **Linearity:** A new version is always calculated based on the total number of versions + 1 (old versions cannot be overwritten).
 
 ---
 
 ## 2. UserService.java
-Отговаря за администрацията на потребителите и управлението на техните права.
+Responsible for user administration and permissions management.
 
-### 🔑 Административни функции
-Всички методи тук изискват потребителят, извършващ действието, да притежава роля `ADMIN`.
+### 🔑 Administrative Functions
+All methods here require the user performing the action to have the `ADMIN` role.
 
-| Функция | Описание | Защита (Safety First) |
+| Function | Description | Defense (Safety First) |
 |:---|:---|:---|
-| `assignRole` | Добавя нова роля на потребител. | Проверява дали потребителят вече няма тази роля. |
-| `revokeRole` | Премахва роля. | **Admin Lockout:** Админът не може да премахне своята `ADMIN` роля. |
-| `deactivateUser` | Спира достъпа на потребител. | Админът не може да деактивира сам себе си. |
-| `activateUser` | Възстановява достъпа. | Предотвратява излишни записи, ако акаунтът е вече активен. |
+| `assignRole` | Adds a new role to a user. | Checks if the user already has this role. |
+| `revokeRole` | Removes a role. | **Admin Lockout:** An admin cannot remove their own `ADMIN` role. |
+| `deactivateUser` | Suspends user access. | An admin cannot deactivate themselves. |
+| `activateUser` | Restores access. | Prevents redundant updates if the account is already active. |
 
-### 🛡️ Сигурност и Одит
-- **Role Validation:** Всеки метод стриктно проверява `adminUser.hasRole(Role.ADMIN)`.
-- **Minimum Role Requirement:** Потребителят не може да остане без нито една роля в системата (защита в `revokeRole`).
-- **Audit Logging:** Методите извикват `logAction`, записвайки детайлно кой админ какво действие е извършил върху кой потребител.
+### 🛡️ Security and Audit
+- **Role Validation:** Every method strictly verifies `adminUser.hasRole(Role.ADMIN)`.
+- **Minimum Role Requirement:** A user cannot be left without any roles in the system (safeguard in `revokeRole`).
+- **Audit Logging:** Methods invoke `logAction`, recording in detail which admin performed what action on which user.
 
 ---
 
-## 📝 Примерен поток (Workflow Example)
+## 📝 Workflow Example
 
 ```java
-// 1. Автор създава документ (V1 - DRAFT)
-workflowService.createDocument(author, "Заявление", "Описание", "Съдържание...");
+// 1. Author creates a document (V1 - DRAFT)
+workflowService.createDocument(author, "Application", "Description", "Content...");
 
-// 2. Автор изпраща за преглед
+// 2. Author submits for review
 workflowService.submitForReview(author, versionId);
 
-// 3. Рецензент одобрява (Запазва се коментар и се праща известие)
-workflowService.approveDocument(reviewer, versionId, "Всичко е наред. Одобрявам!");
+// 3. Reviewer approves (Saves a comment and sends a notification)
+workflowService.approveDocument(reviewer, versionId, "Everything looks good. Approved!");
 
-// 4. Потребител експортира одобрения документ в PDF
+// 4. User exports the approved document to PDF
 byte[] pdfData = workflowService.exportVersionToPdf(vEntity);

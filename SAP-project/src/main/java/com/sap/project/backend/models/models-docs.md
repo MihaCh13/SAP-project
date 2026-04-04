@@ -1,41 +1,41 @@
-# Пакет: com.sap.project.backend.models
+# Package: com.sap.project.backend.models
 
-Този пакет съдържа основните бизнес обекти (Entities), които съответстват на таблиците в базата данни.
+This package contains the core business objects (Entities) that correspond to the database tables.
 
-## 1. Version (Версия на документ)
-Класът представя конкретна версия на даден документ.
+## 1. Version (Document Version)
+This class represents a specific version of a given document.
 
-**Основни принципи и Защити (Defensive Programming):**
-* **Неизменяемост (Immutability):** Съдържанието (`content`) и идентификаторите са `final`. Веднъж създадена, версията не може да бъде редактирана. При нужда от промяна се създава нова версия.
-* **Валидация на данните:** Вградени са стриктни проверки в конструктора, които гарантират, че идентификаторите са валидни положителни числа и че съдържанието (`content`) никога не може да бъде празно.
-* **Работен процес:** Класът сам управлява промяната на своите статуси чрез бизнес методи (`submitForReview()`, `approve()`, `reject()`), за да предотврати невалидни преходи. Одобряването е защитено и изисква валидно ID на рецензент.
+**Core Principles and Defenses (Defensive Programming):**
+* **Immutability:** The `content` and identifiers are `final`. Once created, the version cannot be edited. If changes are needed, a new version is created.
+* **Data Validation:** Strict checks are built into the constructor to ensure that identifiers are valid positive numbers and that the `content` can never be empty.
+* **Workflow:** The class internally manages its status transitions through business methods (`submitForReview()`, `approve()`, `reject()`) to prevent invalid state changes. Approval is protected and requires a valid reviewer ID.
 
-**Ключови полета:**
-* `versionNumber`: Пореден номер на версията за съответния документ.
-* `content`: Пълно копие (snapshot) на текста/съдържанието.
-* `parentVersionId`: ID на предишната версия, на базата на която е създадена текущата.
+**Key Fields:**
+* `versionNumber`: The sequential number of the version for the corresponding document.
+* `content`: A full copy (snapshot) of the text/content.
+* `parentVersionId`: The ID of the previous version upon which the current one is based.
 
-## 2. Document (Документ)
-Класът действа като основен контейнер, който съхранява само метаданните на даден документ, докато реалното му съдържание се намира в отделните версии.
+## 2. Document
+This class acts as the main container, storing only the metadata of a given document, while its actual content resides in the separate versions.
 
-**Основни принципи и Защити (Defensive Programming):**
-* **Разделяне на отговорностите (Separation of Concerns):** Документът не пази текст. Той служи за логическо обединение на всички свои версии и носи глобалната информация (заглавие, описание, статус на активност).
-* **Защита на данните:** Основните идентификатори и информацията за създаване (`id`, `createdBy`, `createdAt`) са `final` и не могат да бъдат променяни след първоначалното създаване.
-* **Валидация и Null-Safety:** Строги проверки предпазват от създаване на документи без заглавие или с невалидни ID-та. Описанието е защитено от `NullPointerException` (ако се подаде `null`, се записва като празен низ `""`).
-* **Управление на състоянието:** Класът използва бизнес методи като `archive()` и `activate()` за контрол на жизнения си цикъл, вместо директни промени на полето `isActive`.
+**Core Principles and Defenses (Defensive Programming):**
+* **Separation of Concerns:** The document does not store text. It serves to logically group all its versions and carries the global information (title, description, active status).
+* **Data Protection:** The core identifiers and creation info (`id`, `createdBy`, `createdAt`) are `final` and cannot be modified after initial creation.
+* **Validation and Null-Safety:** Strict checks prevent the creation of documents without a title or with invalid IDs. The description is protected against `NullPointerException` (if `null` is provided, it is saved as an empty string `""`).
+* **State Management:** The class uses business methods like `archive()` and `activate()` to control its lifecycle, rather than allowing direct modifications to the `isActive` field.
 
-**Ключови полета:**
-* `title` и `description`: Метаданни, които могат да бъдат редактирани свободно, без това да изисква създаване на нова версия на текста.
-* `activeVersionId`: Референция към ID-то на текущата официално одобрена (активна) версия. Първоначално е `null`, докато някоя от черновите не бъде одобрена. Защитено е да приема само положителни числа.
+**Key Fields:**
+* `title` and `description`: Metadata that can be freely edited without requiring the creation of a new text version.
+* `activeVersionId`: A reference to the ID of the currently officially approved (active) version. It is initially `null` until a draft is approved. It is protected to accept only positive numbers.
 
-## 3. User (Потребител)
-Класът представя участниците в системата и техните данни за достъп. Той е в основата на ролевия модел (RBAC) и управлението на правата.
+## 3. User
+This class represents the system participants and their access credentials. It is the foundation of the Role-Based Access Control (RBAC) model and permissions management.
 
-**Основни принципи и Защити (Defensive Programming):**
-* **Защита на идентичността:** Полетата `id`, `username` и `email` са `final`. Проверяват се строго при създаване, за да се избегнат непълни профили.
-* **Връзка с Ролите (Many-to-Many):** Класът е напълно синхронизиран с базата данни, поддържайки списък (множество) от роли чрез `Set<Role> roles`. Това позволява на един потребител да комбинира права.
-* **Принцип на най-малките привилегии:** Ако при регистрация не бъде подадена изрична роля, системата автоматично назначава базовата роля `READER`.
-* **Капсулиране на сигурността:**
-    * Външен достъп до списъка с роли се осъществява само чрез `Collections.unmodifiableSet()`, което предотвратява външно манипулиране на правата.
-    * Методът `removeRole()` съдържа предпазна логика, която не позволява изтриването на последната роля на потребителя.
-* **Управление на достъпа:** Вместо изтриване на потребители, класът поддържа методи `activate()` и `deactivate()`, което запазва историята на действията им непокътната.
+**Core Principles and Defenses (Defensive Programming):**
+* **Identity Protection:** The `id`, `username`, and `email` fields are `final`. They are strictly validated upon creation to prevent incomplete profiles.
+* **Role Relations (Many-to-Many):** The class is fully synchronized with the database, maintaining a collection (set) of roles via `Set<Role> roles`. This allows a user to combine multiple permissions.
+* **Principle of Least Privilege:** If no explicit role is provided during registration, the system automatically assigns the base `READER` role.
+* **Security Encapsulation:**
+  * External access to the roles set is granted exclusively through `Collections.unmodifiableSet()`, preventing external manipulation of permissions.
+  * The `removeRole()` method contains safeguard logic that prevents the deletion of a user's last remaining role.
+* **Access Management:** Instead of deleting users, the class implements `activate()` and `deactivate()` methods, which keeps their action history intact.

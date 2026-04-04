@@ -1,58 +1,56 @@
-# 🔄 Документация на Трансформационния Слой (Mappers)
+# 🔄 Transformation Layer Documentation (Mappers)
 
-Пакетът `com.sap.project.database.mappers` отговаря за преобразуването на обекти между персистентния слой (JPA Entities) и слоя на бизнес логиката (Domain Models). Това разделение гарантира, че промени в структурата на базата данни няма да счупят директно бизнес правилата.
+The `com.sap.project.database.mappers` package is responsible for converting objects between the persistence layer (JPA Entities) and the business logic layer (Domain Models). This separation ensures that changes in the database structure will not directly break the business rules.
 
 ---
 
-## 1. Концепция на мапирането
+## 1. Mapping Concept
 
-Системата следва принципа на **Separation of Concerns**. Маперите са дефинирани като статични помощни класове, които извършват дълбоко копиране на данните, осигурявайки:
-- **Типова безопасност:** Преобразуване на низове от БД в специфични Java Enums.
-- **Data Protection:** Предотвратяване на излагането на сурови Entity обекти към външните слоеве на приложението.
-
-
+The system follows the **Separation of Concerns** principle. Mappers are defined as static utility classes that perform deep copying of data, providing:
+- **Type Safety:** Converting database strings into specific Java Enums.
+- **Data Protection:** Preventing the exposure of raw Entity objects to the external layers of the application.
 
 ---
 
 ## 2. UserMapper.java
 
-Този мапер е отговорен за трансформацията на потребителските данни и техните права.
+This mapper is responsible for the transformation of user data and their permissions.
 
-### 🛠️ Методи:
+### 🛠️ Methods:
 - **`toModel(UserEntity entity)`**:
-    - Преобразува списъка от `RoleEntity` в `Set<Role>`.
-    - **Error Handling:** Вградена е логика за безопасност – ако името на ролята в базата данни е невалидно или повредено, системата автоматично задава базовата роля `READER`, вместо да прекрати работа (Fail-safe).
-    - Конструира чист `User` модел за бекенд услугите.
+  - Converts the list of `RoleEntity` into a `Set<Role>`.
+  - **Error Handling:** Built-in safety logic – if the role name in the database is invalid or corrupted, the system automatically assigns the base `READER` role instead of terminating the operation (Fail-safe).
+  - Constructs a clean `User` model for the backend services.
 
 - **`toEntity(User model)`**:
-    - Подготвя данните за запис обратно в базата данни.
-    - Прехвърля базовите полета като `username`, `email` и `passwordHash`.
+  - Prepares the data for persisting back into the database.
+  - Transfers the base fields such as `username`, `email`, and `passwordHash`.
 
 ---
 
 ## 3. VersionMapper.java
 
-Управлява преобразуването на версиите на документи, което е критично за функционирането на **WorkflowService**.
+Manages the transformation of document versions, which is critical for the functioning of the **WorkflowService**.
 
-### 🛠️ Методи:
+### 🛠️ Methods:
 - **`toModel(VersionEntity entity)`**:
-    - **ID Mapping:** Екстрактва ID-тата на свързаните обекти (`DocumentEntity`, `UserEntity`), за да попълни плоската структура на бизнес модела `Version`.
-    - **Hierarchy Handling:** Проверява дали съществува родителска версия (`parentVersion`). Ако такава липсва (при V1), коректно задава `null`, поддържайки линейната история на документа.
+  - **ID Mapping:** Extracts the IDs of related objects (`DocumentEntity`, `UserEntity`) to populate the flat structure of the `Version` business model.
+  - **Hierarchy Handling:** Checks if a parent version exists (`parentVersion`). If it is missing (as in V1), it correctly assigns `null`, maintaining the linear history of the document.
 
 ---
 
-## 📊 Сравнителна таблица на трансформациите
+## 📊 Transformation Comparison Table
 
-| От (Source) | Към (Target) | Обработка на данни |
-| :--- | :--- | :--- |
-| `UserEntity` | `User` | Преобразуване на `Set<RoleEntity>` ➔ `Set<Role>` (Enum) |
-| `VersionEntity` | `Version` | Извличане на референции (IDs) от обекти |
-| `String` (DB) | `Role` (Enum) | Case-insensitive преобразуване с fallback логика |
+| From (Source)   | To (Target)   | Data Processing                                      |
+|:----------------|:--------------|:-----------------------------------------------------|
+| `UserEntity`    | `User`        | Conversion of `Set<RoleEntity>` ➔ `Set<Role>` (Enum) |
+| `VersionEntity` | `Version`     | Extraction of references (IDs) from objects          |
+| `String` (DB)   | `Role` (Enum) | Case-insensitive conversion with fallback logic      |
 
 ---
 
-## ⚠️ Технически бележки за разработчици
+## ⚠️ Technical Notes for Developers
 
-1. **Lazy Initialization:** Маперите трябва да се извикват в рамките на активна трансакция, ако `Entity` обектите съдържат `Lazy` заредени връзки (като ролите на потребителя).
-2. **Stateless:** Класовете са проектирани без вътрешно състояние (Stateless), което ги прави нишково безопасни (Thread-safe) и лесни за тестване.
-3. **Еволюция:** При добавяне на нови полета в таблиците, маперите са първото място, където трябва да се добави логика за прехвърляне на тези данни към моделите.
+1. **Lazy Initialization:** Mappers should be invoked within an active transaction if the `Entity` objects contain `Lazy`-loaded associations (such as user roles).
+2. **Stateless:** The classes are designed without internal state (Stateless), making them thread-safe and easy to test.
+3. **Evolution:** When adding new fields to the tables, the mappers are the first place where logic must be added to transfer this data to the models.

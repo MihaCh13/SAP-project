@@ -1,19 +1,19 @@
-# Пакет: com.sap.project.backend.enums
+# Package: com.sap.project.backend.enums
 
-Този пакет съдържа всички изброими типове (Enums), които дефинират фиксираните списъци от стойности в системата.
+This package contains all the enumerated types (Enums) that define the fixed lists of values within the system.
 
-## 1. Role (Роли)
-Определя нивата на достъп и правата на потребителите в системата.
-Включва следните системни роли:
-* **AUTHOR** - Автор на документи.
-* **REVIEWER** - Рецензент, който преглежда и одобрява/отхвърля версии.
-* **READER** - Читател (само право на четене).
-* **ADMIN** - Администратор на системата.
+## 1. Role
+Defines the access levels and user permissions within the system.
+It includes the following system roles:
+* **AUTHOR** - Author of documents.
+* **REVIEWER** - Reviewer who inspects and approves/rejects versions.
+* **READER** - Reader (read-only access).
+* **ADMIN** - System administrator.
 
-## 2. Status (Статуси на версия)
-Определя жизнения цикъл и състоянието на дадена версия на документ.
-Статусите следват строг работен процес:
-* **DRAFT** - Първоначална чернова. Само авторът може да я редактира преди изпращане.
-* **PENDING_REVIEW** - Изпратена за преглед. Чака решение от рецензент.
-* **APPROVED** - Одобрена версия.
-* **REJECTED** - Отхвърлена версия.
+## 2. Status
+Defines the lifecycle and state of a specific document version.
+The statuses follow a strict workflow:
+* **DRAFT** - Initial draft. Only the author can edit it before submission.
+* **PENDING_REVIEW** - Submitted for review. Awaiting a decision from a reviewer.
+* **APPROVED** - Approved version.
+* **REJECTED** - Rejected version.

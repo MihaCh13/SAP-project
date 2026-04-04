@@ -1,69 +1,69 @@
 # 🏗️ Backend System Overview: Document Version Control System (DVCS)
 
-Този документ предоставя детайлно техническо описание на бекенд архитектурата, бизнес логиката и механизмите за сигурност, реализирани в ядрото на системата.
+This document provides a detailed technical description of the backend architecture, business logic, and security mechanisms implemented in the core of the system.
 
 ---
 
-## 1. Архитектурен Модел
-Проектът е изграден върху **Spring Boot** рамката, следвайки принципа на разделяне на отговорностите (Separation of Concerns):
+## 1. Architectural Model
+The project is built on the **Spring Boot** framework, following the Separation of Concerns principle:
 
-* **Domain Models (`backend.models` / `database.entities`)**: Обекти, капсулиращи данните, базовата валидация и ORM мапинга към базата данни.
-* **Services (`backend.services`)**: Сърцето на системата (`WorkflowService`, `UserService`). Тук се прилагат бизнес правилата, ролевият достъп, логиката на работните процеси и одитирането.
-* **Controllers (`controllers`)**: REST API слоят, който приема HTTP заявките, валидира ги и управлява комуникацията с външни клиенти.
-* **Persistence Layer (`database.repositories`)**: Използва Spring Data JPA за управление на жизнения цикъл на обектите в базата данни (H2).
-
----
-
-## 2. Управление на Версиите (Workflow Logic)
-
-Системата гарантира **линейно версиониране** и **неизменяемост (Immutability)** на данните чрез следните механизми:
-
-### 🛡️ State Machine (Логика на състоянията)
-Всяка версия преминава през строг цикъл от статуси, управляван от `WorkflowService`:
-1.  **DRAFT**: Начално състояние. Позволява редакция само от автора.
-2.  **PENDING_REVIEW**: Версията е "заключена". Забранено е създаването на нови версии, докато документът се преглежда.
-3.  **APPROVED**: Версията става официална и активна за документа. *(Автоматично генерира известие до автора)*.
-4.  **REJECTED**: Версията остава в историята, но не е достъпна за крайни потребители. *(Автоматично генерира известие до автора)*.
-
-### 🔒 Защити при редактиране
-Методът `editDocument` изисква обект на родителската версия, за да провери нейния статус. Ако документът е в процес на преглед, системата блокира създаването на нова чернова, за да предотврати конфликти.
-
-### 📄 Експорт на документи
-Одобрените версии могат да бъдат експортирани във формати за четене (**PDF** чрез библиотеката `OpenPDF`, както и **TXT**) директно през API-то, запазвайки метаданните (заглавие, статус, автор).
+* **Domain Models (`backend.models` / `database.entities`)**: Objects encapsulating data, basic validation, and ORM mapping to the database.
+* **Services (`backend.services`)**: The heart of the system (`WorkflowService`, `UserService`). This is where business rules, role-based access, workflow logic, and auditing are applied.
+* **Controllers (`controllers`)**: The REST API layer that receives HTTP requests, validates them, and manages communication with external clients.
+* **Persistence Layer (`database.repositories`)**: Uses Spring Data JPA to manage the lifecycle of objects in the database (H2).
 
 ---
 
-## 3. Ролеви Модел и Сигурност (RBAC)
+## 2. Version Management (Workflow Logic)
 
-Системата прилага модела **Role-Based Access Control**, дефиниран в `UserService` и `WorkflowService`:
+The system guarantees **linear versioning** and data **Immutability** through the following mechanisms:
 
-| Роля | Права и ограничения |
+### 🛡️ State Machine
+Every version passes through a strict cycle of statuses managed by the `WorkflowService`:
+1.  **DRAFT**: Initial state. Allows editing only by the author.
+2.  **PENDING_REVIEW**: The version is "locked". Creating new versions is forbidden while the document is under review.
+3.  **APPROVED**: The version becomes official and active for the document. *(Automatically generates a notification to the author)*.
+4.  **REJECTED**: The version remains in the history but is not accessible to end-users. *(Automatically generates a notification to the author)*.
+
+### 🔒 Edit Protections
+The `editDocument` method requires a parent version object to check its status. If the document is currently under review, the system blocks the creation of a new draft to prevent conflicts.
+
+### 📄 Document Export
+Approved versions can be exported to readable formats (**PDF** via the `OpenPDF` library, as well as **TXT**) directly through the API, preserving metadata (title, status, author).
+
+---
+
+## 3. Role Model and Security (RBAC)
+
+The system implements **Role-Based Access Control**, defined in `UserService` and `WorkflowService`:
+
+| Role | Permissions and Restrictions |
 | :--- | :--- |
-| **AUTHOR** | Може да създава документи и да изпраща своите версии за преглед. |
-| **REVIEWER** | Може да одобрява или отхвърля версии. **Защита:** Не може да одобрява собствен труд. |
-| **READER** | Вижда само одобрени (`APPROVED`) версии на документите. |
-| **ADMIN** | Управлява потребители и роли. **Защита:** Admin Lockout protection (не може да изтрие собствения си достъп). |
+| **AUTHOR** | Can create documents and submit their versions for review. |
+| **REVIEWER** | Can approve or reject versions. **Defense:** Cannot approve their own work. |
+| **READER** | Sees only approved (`APPROVED`) versions of the documents. |
+| **ADMIN** | Manages users and roles. **Defense:** Admin Lockout protection (cannot delete their own access). |
 
 ---
 
-## 4. Система за Одит и Известия (Audit & Notifications)
+## 4. Audit & Notifications System
 
-* **Audit Log (Одит):** Всички критични административни действия (напр. добавяне/премахване на роли, активиране на потребители) се записват автоматично в таблицата `audit_logs` с точен час, извършител и детайли за промяната.
-* **Notifications (Известия):** Системата разполага с модул за известия, който информира потребителите в реално време при системни ъпдейти (напр. получена нова роля) или промени в статуса на техен документ.
-
----
-
-## ⚠️ 5. Управление на Изключенията (Exception Handling)
-
-Бекендът комуникира с API слоя чрез специфични изключения:
-* `SecurityException`: Хвърля се при липса на права или конфликт на интереси (напр. Автор се опитва да бъде Рецензент на себе си).
-* `IllegalStateException`: Хвърля се при опит за невалидна смяна на статус (напр. одобрение на директна чернова).
-* `IllegalArgumentException`: Хвърля се при опит за подаване на празни данни, невалидни ID-та или `null` обекти.
-* `RuntimeException`: Хвърля се при проблеми с намирането на записи в базата данни.
+* **Audit Log:** All critical administrative actions (e.g., adding/removing roles, activating users) are automatically recorded in the `audit_logs` table with the exact timestamp, executor, and details of the change.
+* **Notifications:** The system features a notifications module that informs users in real-time about system updates (e.g., a newly granted role) or status changes of their document.
 
 ---
 
-## ⚙️ 6. Техническа Конфигурация
-- **Database:** H2 In-Memory Database (настроена в `application.properties`).
-- **Dependency Injection:** Всички услуги са регистрирани като `@Service` и се инжектират чрез конструктори.
-- **Transactional Integrity:** Всички Service методи са маркирани с `@Transactional`, гарантирайки, че свързаните записи (напр. одобряване на документ и пращане на известие) се изпълняват като една неделима операция – или всичко успява, или нищо не се записва.
+## ⚠️ 5. Exception Handling
+
+The backend communicates with the API layer via specific exceptions:
+* `SecurityException`: Thrown upon a lack of permissions or a conflict of interest (e.g., an Author attempting to act as their own Reviewer).
+* `IllegalStateException`: Thrown upon an attempt at an invalid status change (e.g., direct approval of a draft).
+* `IllegalArgumentException`: Thrown upon an attempt to provide empty data, invalid IDs, or `null` objects.
+* `RuntimeException`: Thrown upon issues with locating records in the database.
+
+---
+
+## ⚙️ 6. Technical Configuration
+- **Database:** H2 In-Memory Database (configured in `application.properties`).
+- **Dependency Injection:** All services are registered as `@Service` and injected via constructors.
+- **Transactional Integrity:** All Service methods are annotated with `@Transactional`, ensuring that related records (e.g., approving a document and sending a notification) are executed as a single indivisible operation – either everything succeeds, or nothing is saved.
