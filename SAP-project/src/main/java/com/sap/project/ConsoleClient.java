@@ -328,7 +328,7 @@ public class ConsoleClient {
             System.out.println("\n========================================");
             System.out.println(" 🔔 YOU HAVE NEW NOTIFICATIONS! 🔔");
             System.out.println("========================================");
-            printPrettyJson(response); // Използваме стария ни метод за красиво форматиране
+            printPrettyJson("\n" + response); // Използваме стария ни метод за красиво форматиране
             System.out.println("========================================");
         }
     }

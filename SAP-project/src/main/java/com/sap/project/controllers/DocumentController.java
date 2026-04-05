@@ -39,20 +39,47 @@ public class DocumentController {
     private DocumentRepository documentRepository;
 
     // ==========================================
-    // --- 0. ВЗЕМАНЕ НА ВСИЧКИ ДОКУМЕНТИ (НОВО) ---
+    // --- 0. ВЗЕМАНЕ НА ВСИЧКИ ДОКУМЕНТИ ---
     // ==========================================
     @GetMapping
-    public ResponseEntity<?> getAllDocuments() {
+    public ResponseEntity<?> getAllDocuments(@RequestHeader("X-User-Id") Integer userId) {
         try {
-            List<DocumentEntity> documents = documentRepository.findAll();
+            // 1. Взимаме кой е потребителят, който пита за документите
+            User userModel = getUserModelById(userId);
 
-            // ТУК Е РАЗЛИКАТА: Изрично казваме Map.<String, Object>of(...)
-            List<Map<String, Object>> response = documents.stream().map(doc -> Map.<String, Object>of(
-                    "ID", doc.getId(),
-                    "Title", doc.getTitle(),
-                    "Author", doc.getCreatedBy() != null ? doc.getCreatedBy().getUsername() : "Unknown",
-                    "Status", doc.isActive() ? "Active" : "Archived"
-            )).collect(Collectors.toList());
+            // 2. Взимаме всички документи от базата
+            List<DocumentEntity> allDocs = documentRepository.findAll();
+
+            // 3. ФИЛТРАЦИЯТА: Минаваме през всеки документ
+            List<Map<String, Object>> response = allDocs.stream()
+                    .map(doc -> {
+                        // Взимаме всички версии на конкретния документ
+                        List<VersionEntity> versions = versionRepository.findByDocumentId(doc.getId());
+
+                        // Използваме нашия брониран метод canViewVersion, за да видим кои версии са разрешени
+                        List<VersionEntity> visibleVersions = versions.stream()
+                                .filter(v -> canViewVersion(userModel, v))
+                                .collect(Collectors.toList());
+
+                        // АКО ПОТРЕБИТЕЛЯТ НЯМА ДОСТЪП ДО НИТО ЕДНА ВЕРСИЯ -> КРИЕМ ЦЕЛИЯ ДОКУМЕНТ (Връщаме null)
+                        if (visibleVersions.isEmpty()) {
+                            return null;
+                        }
+
+                        // Взимаме най-новата версия, която този човек има право да види
+                        VersionEntity latestVisible = visibleVersions.get(visibleVersions.size() - 1);
+
+                        // Връщаме информацията към конзолата
+                        return Map.<String, Object>of(
+                                "ID", doc.getId(),
+                                "Title", doc.getTitle(),
+                                "Version", "V" + latestVisible.getVersionNumber(),
+                                "Status", latestVisible.getStatus().toString(), // Вече ще пише DRAFT, PENDING или APPROVED
+                                "Author", latestVisible.getCreatedBy() != null ? latestVisible.getCreatedBy().getUsername() : "Unknown"
+                        );
+                    })
+                    .filter(java.util.Objects::nonNull) // Изтриваме всички null записи (скритите документи)
+                    .collect(Collectors.toList());
 
             return ResponseEntity.ok(response);
 
@@ -163,14 +190,15 @@ public class DocumentController {
                     .map(v -> {
                         String content = v.getContent();
                         String preview = content.length() > 40 ? content.substring(0, 40) + "..." : content;
-                        return Map.of(
-                                "Version", "V" + v.getVersionNumber(),
+                        return Map.<String, String>of(
+                                // ТУК Е ВАЖНАТА ПРОМЯНА: Добавяме ID-то в скоби
+                                "Version", "V" + v.getVersionNumber() + " [ID: " + v.getId() + "]",
                                 "Status", v.getStatus().toString(),
                                 "Author", v.getCreatedBy() != null ? v.getCreatedBy().getUsername() : "Unknown",
                                 "Preview", preview
                         );
                     })
-                    .toList();
+                    .collect(Collectors.toList());
 
             if (historySummary.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access Denied or No History Found.");

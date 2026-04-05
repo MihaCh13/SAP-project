@@ -51,6 +51,19 @@ public class WorkflowService {
             throw new SecurityException("Error: Only users with the AUTHOR role can create documents.");
         }
 
+        // --- НОВА ВАЛИДАЦИЯ ЗА УНИКАЛНО ЗАГЛАВИЕ ---
+        boolean isTitleTaken = documentRepository.findAll().stream()
+                .filter(doc -> doc.getTitle().equalsIgnoreCase(title.trim())) // Търсим документ със същото име (без значение малки/големи букви)
+                .anyMatch(doc -> {
+                    // Проверяваме дали този документ има поне една ОДОБРЕНА версия
+                    List<VersionEntity> versions = versionRepository.findByDocumentId(doc.getId());
+                    return versions.stream().anyMatch(v -> v.getStatus() == Status.APPROVED);
+                });
+
+        if (isTitleTaken) {
+            throw new RuntimeException("Error: A document with the title '" + title + "' already exists and is APPROVED!");
+        }
+
         // Записваме Документа в базата
         DocumentEntity docEntity = new DocumentEntity();
         docEntity.setTitle(title);
@@ -234,11 +247,19 @@ public class WorkflowService {
 
     public String exportVersionToText(VersionEntity vEntity) {
         StringBuilder sb = new StringBuilder();
-        sb.append("=== SAP DOCUMENT EXPORT ===\n");
-        sb.append("Title: ").append(vEntity.getDocument().getTitle()).append("\n");
-        sb.append("Version №: ").append(vEntity.getVersionNumber()).append("\n");
-        sb.append("Status: ").append(vEntity.getStatus()).append("\n");
-        sb.append("Content:\n").append(vEntity.getContent()).append("\n");
+        sb.append("========================================\n");
+        sb.append("   SAP DOCUMENT EXPORT (TXT Format)     \n");
+        sb.append("========================================\n");
+        sb.append("Title:       ").append(vEntity.getDocument().getTitle()).append("\n");
+        sb.append("Description: ").append(vEntity.getDocument().getDescription()).append("\n");
+        sb.append("Version:     V").append(vEntity.getVersionNumber()).append("\n");
+        sb.append("Status:      ").append(vEntity.getStatus()).append("\n");
+        sb.append("Author:      ").append(vEntity.getCreatedBy().getUsername()).append("\n");
+        sb.append("Date:        ").append(vEntity.getCreatedAt()).append("\n");
+        sb.append("----------------------------------------\n");
+        sb.append("CONTENT:\n");
+        sb.append(vEntity.getContent()); // ТУК Е САМОТО СЪДЪРЖАНИЕ!
+        sb.append("\n----------------------------------------\n");
         return sb.toString();
     }
 
