@@ -30,13 +30,15 @@ public class UserController {
     // ==========================================
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> credentials) {
-        // ЗАЩИТА: Липсващи данни
-        if (!credentials.containsKey("username") || !credentials.containsKey("password")) {
-            return ResponseEntity.badRequest().body("Error: Username and password are required.");
-        }
 
         String username = credentials.get("username");
         String password = credentials.get("password");
+
+        // НОВАТА СТРОГА ЗАЩИТА И ЗА LOGIN:
+        if (username == null || username.trim().isEmpty() ||
+                password == null || password.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("Error: Username and password are required and cannot be empty.");
+        }
 
         Optional<UserEntity> userOpt = userRepository.findAll().stream()
                 .filter(u -> u.getUsername().equals(username))
@@ -75,16 +77,30 @@ public class UserController {
             @RequestBody Map<String, String> payload) {
 
         try {
-            // ЗАЩИТА: Липсващи данни
-            if (!payload.containsKey("username") || !payload.containsKey("password") || !payload.containsKey("role")) {
-                return ResponseEntity.badRequest().body("Error: Missing required fields (username, password, role).");
+            String username = payload.get("username");
+            String password = payload.get("password");
+            String email = payload.get("email");
+            String role = payload.get("role");
+
+            if (username == null || username.trim().isEmpty() ||
+                    password == null || password.trim().isEmpty() ||
+                    email == null || email.trim().isEmpty() ||
+                    role == null || role.trim().isEmpty()) {
+
+                return ResponseEntity.badRequest().body("Error: All fields (username, password, email, role) are required and cannot be empty.");
             }
 
             // ЗАЩИТА: Заето ли е потребителското име?
             boolean usernameExists = userRepository.findAll().stream()
-                    .anyMatch(u -> u.getUsername().equals(payload.get("username")));
+                    .anyMatch(u -> u.getUsername().equalsIgnoreCase(username.trim()));
             if (usernameExists) {
                 return ResponseEntity.status(HttpStatus.CONFLICT).body("Error: Username already exists!");
+            }
+
+            boolean emailExists = userRepository.findAll().stream()
+                    .anyMatch(u -> u.getEmail() != null && u.getEmail().equalsIgnoreCase(email.trim()));
+            if (emailExists) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body("Error: Email already exists!");
             }
 
             UserEntity adminOpt = userRepository.findById(adminId)
@@ -96,24 +112,23 @@ public class UserController {
             }
 
             UserEntity newUser = new UserEntity();
-            newUser.setUsername(payload.get("username"));
-            newUser.setEmail(payload.get("email")); // Може да е null, ако не го пратят, което е ок за прототип
-            newUser.setPasswordHash(payload.get("password"));
+            newUser.setUsername(username.trim());
+            newUser.setEmail(email.trim());
+            newUser.setPasswordHash(password);
             newUser.setCreatedAt(java.time.LocalDateTime.now());
             newUser.setActive(true);
 
-            String rolesInput = payload.get("role");
-            String[] roleNames = rolesInput.split(",");
+            String[] roleNames = role.split(",");
 
             for (String rName : roleNames) {
                 String cleanRoleName = rName.trim().toUpperCase();
-                RoleEntity role = roleRepository.findByName(cleanRoleName)
+                RoleEntity roleEntity = roleRepository.findByName(cleanRoleName)
                         .orElseThrow(() -> new RuntimeException("Role not found in database: " + cleanRoleName));
-                newUser.getRoles().add(role);
+                newUser.getRoles().add(roleEntity);
             }
 
             userRepository.save(newUser);
-            return ResponseEntity.status(HttpStatus.CREATED).body("User " + newUser.getUsername() + " created successfully with roles: " + rolesInput.toUpperCase());
+            return ResponseEntity.status(HttpStatus.CREATED).body("User " + newUser.getUsername() + " created successfully with roles: " + role.toUpperCase());
 
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Registration Error: " + e.getMessage());
@@ -129,11 +144,18 @@ public class UserController {
             @RequestBody Map<String, String> payload) {
 
         try {
-            // ЗАЩИТА: Липсващи данни
-            if (!payload.containsKey("username") || !payload.containsKey("roles")) {
-                return ResponseEntity.badRequest().body("Error: Missing required fields (username, roles).");
+            // 1. Извличаме данните от заявката
+            String targetUsername = payload.get("username");
+            String rolesInput = payload.get("roles");
+
+            // 2. СТРОГА ЗАЩИТА (Новият код): Проверяваме за null или празни стрингове ("")
+            if (targetUsername == null || targetUsername.trim().isEmpty() ||
+                    rolesInput == null || rolesInput.trim().isEmpty()) {
+
+                return ResponseEntity.badRequest().body("Error: Username and roles cannot be empty.");
             }
 
+            // 3. Проверка дали заявителят е Админ
             UserEntity adminOpt = userRepository.findById(adminId)
                     .orElseThrow(() -> new RuntimeException("Administrator not found!"));
 
@@ -142,17 +164,20 @@ public class UserController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Error: Only administrators can assign roles.");
             }
 
-            String targetUsername = payload.get("username");
+            // 4. Намиране на целевия потребител
             UserEntity targetUser = userRepository.findAll().stream()
                     .filter(u -> u.getUsername().equals(targetUsername))
                     .findFirst()
                     .orElseThrow(() -> new RuntimeException("Target user '" + targetUsername + "' not found!"));
 
-            String rolesInput = payload.get("roles");
+            // 5. Добавяне на ролите
             String[] roleNames = rolesInput.split(",");
-
             for (String rName : roleNames) {
                 String cleanRoleName = rName.trim().toUpperCase();
+
+                // Защита от празни елементи при две запетаи (напр. "AUTHOR,,ADMIN")
+                if(cleanRoleName.isEmpty()) continue;
+
                 RoleEntity role = roleRepository.findByName(cleanRoleName)
                         .orElseThrow(() -> new RuntimeException("Role not found: " + cleanRoleName));
                 targetUser.getRoles().add(role);
@@ -160,10 +185,11 @@ public class UserController {
 
             userRepository.save(targetUser);
 
-            // Пращаме известие
+            // 6. Изпращане на известие
             NotificationEntity notif = new NotificationEntity();
             notif.setUser(targetUser);
             notif.setMessage("System Update: You have been granted new roles -> " + rolesInput.toUpperCase());
+            notif.setCreatedAt(java.time.LocalDateTime.now()); // Добра практика е да има дата
             notificationRepository.save(notif);
 
             return ResponseEntity.ok("Roles [" + rolesInput.toUpperCase() + "] successfully added to user: " + targetUsername);
