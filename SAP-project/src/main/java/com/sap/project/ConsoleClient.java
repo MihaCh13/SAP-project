@@ -21,7 +21,7 @@ public class ConsoleClient {
 
     public static void main(String[] args) {
         System.out.println("========================================");
-        System.out.println("    SAP SECURE DOCUMENT MANAGER (v2)    ");
+        System.out.println("    SAP SECURE DOCUMENT MANAGER (V3)    ");
         System.out.println("========================================");
 
         while (true) {
@@ -71,16 +71,18 @@ public class ConsoleClient {
         }
         if (isAdmin) {
             System.out.println("8. [Admin] Register new user");
-            System.out.println("9. [Admin] Add role to existing user"); // <-- НОВАТА ОПЦИЯ
+            System.out.println("9. [Admin] Add role to existing user");
+            System.out.println("10. [Admin] Remove role from existing user");
+            System.out.println("11. [Admin] Deactivate (Delete) user account");
         }
-        
-        System.out.println("10. [Export] Download TXT or PDF");
+
+        // Поправихме номера на експорта да бъде 12 (следващият по ред)
+        System.out.println("12. [Export] Download TXT or PDF");
         System.out.println("0. Logout");
         System.out.print("Select action: ");
 
         String choice = scanner.nextLine();
 
-        // 1. ПОПРАВКА НА ПРОБЛЕМА С ДОСТЪПА: Вече извежда съобщение при грешна роля!
         switch (choice) {
             case "1": showAllDocuments(); break;
             case "2": showHistory(); break;
@@ -90,10 +92,15 @@ public class ConsoleClient {
             case "6": if(isReviewer) approveDoc(); else printDenied("REVIEWER"); break;
             case "7": if(isReviewer) rejectDoc(); else printDenied("REVIEWER"); break;
             case "8": if(isAdmin) registerUser(); else printDenied("ADMIN"); break;
-            case "10": exportMenu(); break;
             case "9": if(isAdmin) addRole(); else printDenied("ADMIN"); break;
-            case "0": 
-                loggedInUserId = null; loggedInUsername = null; loggedInRoles = ""; 
+            case "10": if(isAdmin) removeRole(); else printDenied("ADMIN"); break;
+            case "11": if(isAdmin) deactivateUser(); else printDenied("ADMIN"); break;
+
+            // Експортът вече е вързан към правилното число - 12
+            case "12": exportMenu(); break;
+
+            case "0":
+                loggedInUserId = null; loggedInUsername = null; loggedInRoles = "";
                 System.out.println(">>> Successfully logged out."); break;
             default: System.out.println(">>> INVALID OPTION!");
         }
@@ -331,5 +338,24 @@ public class ConsoleClient {
             printPrettyJson("\n" + response); // Използваме стария ни метод за красиво форматиране
             System.out.println("========================================");
         }
+    }
+
+    private static void removeRole() {
+        System.out.println("\n--- REMOVE ROLE FROM USER ---");
+        System.out.print("Target Username: "); String uName = scanner.nextLine();
+        System.out.print("Roles to remove (comma-separated): "); String roles = scanner.nextLine().toUpperCase();
+
+        String json = String.format("{\"username\":\"%s\",\"roles\":\"%s\"}", uName, roles);
+        String res = sendRequest("POST", "/users/remove-role", json);
+        System.out.println("\n[SERVER]: " + res);
+    }
+
+    private static void deactivateUser() {
+        System.out.println("\n--- DEACTIVATE USER ---");
+        System.out.print("Target Username to deactivate: "); String uName = scanner.nextLine();
+
+        String json = String.format("{\"username\":\"%s\"}", uName);
+        String res = sendRequest("POST", "/users/deactivate", json);
+        System.out.println("\n[SERVER]: " + res);
     }
 }

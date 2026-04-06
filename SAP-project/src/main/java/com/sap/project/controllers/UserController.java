@@ -171,6 +171,13 @@ public class UserController {
                     .orElseThrow(() -> new RuntimeException("Target user '" + targetUsername + "' not found!"));
 
             // 5. Добавяне на ролите
+            // НОВА ЛОГИКА: Ако потребителят е бил деактивиран, го връщаме към живот!
+            boolean wasDeactivated = false;
+            if (!targetUser.isActive()) {
+                targetUser.setActive(true);
+                wasDeactivated = true;
+            }
+
             String[] roleNames = rolesInput.split(",");
             for (String rName : roleNames) {
                 String cleanRoleName = rName.trim().toUpperCase();
@@ -180,7 +187,11 @@ public class UserController {
 
                 RoleEntity role = roleRepository.findByName(cleanRoleName)
                         .orElseThrow(() -> new RuntimeException("Role not found: " + cleanRoleName));
-                targetUser.getRoles().add(role);
+
+                // Проверяваме дали вече няма тази роля, за да не я дублираме
+                if (!targetUser.getRoles().contains(role)) {
+                    targetUser.getRoles().add(role);
+                }
             }
 
             userRepository.save(targetUser);
@@ -192,10 +203,124 @@ public class UserController {
             notif.setCreatedAt(java.time.LocalDateTime.now()); // Добра практика е да има дата
             notificationRepository.save(notif);
 
-            return ResponseEntity.ok("Roles [" + rolesInput.toUpperCase() + "] successfully added to user: " + targetUsername);
+            // Съставяме съобщението
+            String responseMessage = "Roles [" + rolesInput.toUpperCase() + "] successfully added to user: " + targetUsername;
+            if (wasDeactivated) {
+                responseMessage += " (User account was dormant and has been REACTIVATED!).";
+            }
+
+            return ResponseEntity.ok(responseMessage);
 
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Error adding role: " + e.getMessage());
+        }
+    }
+
+    // ==========================================
+    // 4. Премахване на роля от съществуващ потребител
+    // ==========================================
+    @PostMapping("/remove-role")
+    public ResponseEntity<?> removeRoleFromUser(
+            @RequestHeader("X-User-Id") Integer adminId,
+            @RequestBody Map<String, String> payload) {
+
+        try {
+            String targetUsername = payload.get("username");
+            String rolesInput = payload.get("roles");
+
+            if (targetUsername == null || targetUsername.trim().isEmpty() ||
+                    rolesInput == null || rolesInput.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Error: Username and roles cannot be empty.");
+            }
+
+            UserEntity adminOpt = userRepository.findById(adminId)
+                    .orElseThrow(() -> new RuntimeException("Administrator not found!"));
+
+            boolean isAdmin = adminOpt.getRoles().stream().anyMatch(r -> r.getName().equals("ADMIN"));
+            if (!isAdmin) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Error: Only administrators can remove roles.");
+            }
+
+            UserEntity targetUser = userRepository.findAll().stream()
+                    .filter(u -> u.getUsername().equals(targetUsername))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Target user '" + targetUsername + "' not found!"));
+
+            String[] roleNames = rolesInput.split(",");
+            for (String rName : roleNames) {
+                String cleanRoleName = rName.trim().toUpperCase();
+                if (cleanRoleName.isEmpty()) continue;
+
+                // Намираме ролята в списъка на потребителя и я премахваме
+                targetUser.getRoles().removeIf(r -> r.getName().equals(cleanRoleName));
+            }
+
+            // НОВА ЛОГИКА: Защита от "потребител без нито една роля"
+            boolean demotedToReader = false;
+            if (targetUser.getRoles().isEmpty()) {
+                RoleEntity readerRole = roleRepository.findByName("READER")
+                        .orElseThrow(() -> new RuntimeException("READER role not found!"));
+                targetUser.getRoles().add(readerRole);
+                demotedToReader = true;
+            }
+
+            userRepository.save(targetUser);
+
+            String responseMessage = "Roles [" + rolesInput.toUpperCase() + "] successfully removed from user: " + targetUsername;
+
+            if (demotedToReader) {
+                responseMessage += "\n[!] WARNING: The user had no roles left and was automatically demoted to a regular READER.\n" +
+                        "If your intention was to remove them from the system completely, please use the 'Deactivate' option.";
+            }
+
+            return ResponseEntity.ok(responseMessage);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Error removing role: " + e.getMessage());
+        }
+    }
+
+    // ==========================================
+    // 5. Премахване (Деактивиране) на потребител
+    // ==========================================
+    @PostMapping("/deactivate")
+    public ResponseEntity<?> deactivateUser(
+            @RequestHeader("X-User-Id") Integer adminId,
+            @RequestBody Map<String, String> payload) {
+
+        try {
+            String targetUsername = payload.get("username");
+
+            if (targetUsername == null || targetUsername.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Error: Username cannot be empty.");
+            }
+
+            UserEntity adminOpt = userRepository.findById(adminId)
+                    .orElseThrow(() -> new RuntimeException("Administrator not found!"));
+
+            boolean isAdmin = adminOpt.getRoles().stream().anyMatch(r -> r.getName().equals("ADMIN"));
+            if (!isAdmin) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Error: Only administrators can deactivate users.");
+            }
+
+            // ЗАЩИТА: Предпазваме админа да не изтрие сам себе си по погрешка!
+            if (adminOpt.getUsername().equals(targetUsername)) {
+                return ResponseEntity.badRequest().body("Error: You cannot deactivate your own admin account!");
+            }
+
+            UserEntity targetUser = userRepository.findAll().stream()
+                    .filter(u -> u.getUsername().equals(targetUsername))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Target user '" + targetUsername + "' not found!"));
+
+            // Soft Delete: Правим потребителя неактивен
+            targetUser.setActive(false);
+            userRepository.save(targetUser);
+
+            return ResponseEntity.ok("User '" + targetUsername + "' has been successfully deactivated. They can no longer log in.");
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Error deactivating user: " + e.getMessage());
         }
     }
 }
