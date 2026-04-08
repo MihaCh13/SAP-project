@@ -9,35 +9,34 @@ import java.util.stream.Collectors;
 public class UserMapper {
 
     public static User toModel(UserEntity entity) {
-        // Превръщам ти RoleEntity обектите в моите Role enum-и
+        // Converting RoleEntity objects into Role enums
         Set<Role> userRoles = entity.getRoles().stream()
                 .map(roleEntity -> {
                     try {
-                        // Вземаме името на ролята (напр. "ADMIN") и го превръщаме в Enum
+                        // Get the role name (e.g., "ADMIN") and convert it to Enum
                         return Role.valueOf(roleEntity.getName().toUpperCase());
                     } catch (Exception e) {
-                        return Role.READER; // Ако нещо се обърка, даваме най-ниската роля
+                        return Role.READER; // If something goes wrong, assign the lowest role
                     }
                 })
                 .collect(Collectors.toSet());
-        // Подаваме ВЕЧЕ ГОТОВИТЕ роли на конструктора
+
+        // Passing the PREPARED roles to the constructor
         return new User(
                 entity.getId(),
                 entity.getUsername(),
                 entity.getEmail(),
                 entity.getPasswordHash(),
-                userRoles  // <--- Използваме променливата отгоре, без да пишем нов стрийм тук
+                userRoles  // <--- Using the variable from above without writing a new stream here
         );
     }
 
     public static UserEntity toEntity(User model) {
         UserEntity entity = new UserEntity();
-        // Тук просто прехвърляме данните обратно, ако ни потрябват за запис
+        // Simply transferring data back if needed for saving
         entity.setUsername(model.getUsername());
         entity.setEmail(model.getEmail());
         entity.setPasswordHash(model.getPasswordHash());
-
-        // ролите ще ги сетнеш отделно (по-сложно е)
 
         return entity;
     }

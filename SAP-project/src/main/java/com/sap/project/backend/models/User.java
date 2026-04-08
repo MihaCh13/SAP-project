@@ -8,22 +8,22 @@ import java.util.Set;
 
 public class User {
 
-    // --- FINAL полета (Неизменяеми след създаване) ---
+    // --- FINAL fields (Immutable after creation) ---
     private final int id;
     private final String username;
     private final String email;
     private final LocalDateTime createdAt;
 
-    // --- Променливи полета ---
+    // --- Mutable fields ---
     private String passwordHash;
     private boolean isActive;
-    private Set<Role> roles;        // Връзката с ролите
+    private Set<Role> roles;        // Connection with roles
 
-    // Конструктор
+    // Constructor
     public User(int id, String username, String email, String passwordHash, Set<Role> roles) {
         this.id = id;
 
-        // 1. ЗАЩИТА НА ТЕКСТОВИТЕ ПОЛЕТА
+        // 1. TEXT FIELD PROTECTION
         if (username == null || username.trim().isEmpty()) {
             throw new IllegalArgumentException("The username cannot be empty.");
         }
@@ -39,18 +39,18 @@ public class User {
         }
         this.passwordHash = passwordHash;
 
-        // Не позволяваме създаване на потребител без роля.
-        // Ако не е подадена роля (списъкът е null или празен),
-        // даваме роля READER по подразбиране.
+        // We do not allow creating a user without a role.
+        // If no role is provided (the list is null or empty),
+        // we assign the READER role by default.
         if (roles == null || roles.isEmpty()) {
             this.roles = new HashSet<>();
             this.roles.add(Role.READER);
         } else {
-            // Ако са подадени валидни роли, ги записваме тях
+            // If valid roles are provided, we save them
             this.roles = new HashSet<>(roles);
         }
 
-        // По подразбиране, когато създадем нов потребител, той е активен
+        // By default, when a new user is created, they are active
         this.isActive = true;
         this.createdAt = LocalDateTime.now();
     }
@@ -63,19 +63,19 @@ public class User {
     public boolean isActive() { return isActive; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 
-    // 3. ЗАКЛЮЧВАНЕ НА СПИСЪКА (Само за четене)
+    // 3. LOCKING THE LIST (Read-only)
     public Set<Role> getRoles() {
         return Collections.unmodifiableSet(roles);
     }
 
-    // --- SETTERS & БИЗНЕС ЛОГИКА ---
+    // --- SETTERS & BUSINESS LOGIC ---
 
-    // Методът, който WorkflowService ще използва за проверките!
+    // The method that WorkflowService will use for checks!
     public boolean hasRole(Role role) {
         return this.roles.contains(role);
     }
 
-    // Добавяне на допълнителна роля
+    // Adding an additional role
     public void addRole(Role role) {
         if (role == null) {
             throw new IllegalArgumentException("Cannot add a null role.");
@@ -83,7 +83,7 @@ public class User {
         this.roles.add(role);
     }
 
-    // Премахване на роля
+    // Removing a role
     public void removeRole(Role role) {
         if (role != null) {
             if (this.roles.size() == 1 && this.roles.contains(role)) {
@@ -93,7 +93,7 @@ public class User {
         }
     }
 
-    // Смяна на парола (очаква се да се подава вече хеширана парола)
+    // Changing the password (expects an already hashed password)
     public void setPasswordHash(String passwordHash) {
         if (passwordHash == null || passwordHash.trim().isEmpty()) {
             throw new IllegalArgumentException("The password cannot be empty.");
@@ -101,7 +101,7 @@ public class User {
         this.passwordHash = passwordHash;
     }
 
-    // Деактивиране на акаунт
+    // Deactivating an account
     public void deactivate() {
         if (!this.isActive) {
             throw new IllegalStateException("The user is already deactivated.");
@@ -109,7 +109,7 @@ public class User {
         this.isActive = false;
     }
 
-    // Възстановяване на акаунт
+    // Restoring (activating) an account
     public void activate() {
         if (this.isActive) {
             throw new IllegalStateException("The user is already active.");

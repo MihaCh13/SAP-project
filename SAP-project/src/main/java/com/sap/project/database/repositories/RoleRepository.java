@@ -8,8 +8,8 @@ import java.util.Optional;
 
 @Repository
 public interface RoleRepository extends JpaRepository<RoleEntity, Integer> {
-    
-    // Spring Data JPA е достатъчно умен, за да разбере какво искаш само от името на метода!
+
+    // Spring Data JPA is smart enough to understand what you want just from the method name!
     Optional<RoleEntity> findByName(String name);
-    
+
 }

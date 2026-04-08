@@ -17,122 +17,122 @@ import java.time.LocalDateTime;
 @Transactional
 public class UserService {
 
-    // Връзката с базата данни
+    // Connection to the database
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final AuditLogRepository auditLogRepository;
 
     public UserService(UserRepository userRepository,
                        RoleRepository roleRepository,
-                       AuditLogRepository auditLogRepository) { // <-- ДОБАВЕНО
+                       AuditLogRepository auditLogRepository) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.auditLogRepository = auditLogRepository;
     }
 
-    // 1. Добавяне на роля на потребител
+    // 1. Adding a role to a user
     public void assignRole(User adminUser, int targetUserId, Role newRole) {
-        // Проверка за валиден админ
+        // Check for a valid admin
         if (adminUser == null) {
             throw new IllegalArgumentException("Error: Invalid admin user.");
         }
 
-        // Проверка дали вършителят на действието е ADMIN
+        // Check that the action performer is an ADMIN
         if (!adminUser.hasRole(Role.ADMIN)) {
             throw new SecurityException("Error: Only an administrator (ADMIN) can assign roles.");
         }
 
-        // Проверка за добавяне на null роля
+        // Check for adding a null role
         if (newRole == null) {
             throw new IllegalArgumentException("The role to be added cannot be empty.");
         }
 
-        // Взимаме реалния потребител от базата чрез неговото ID
+        // Retrieve the actual user from the database by their ID
         UserEntity target = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new IllegalArgumentException("Target user not found in database."));
 
-        // Намираме RoleEntity-то
+        // Find the RoleEntity
         RoleEntity roleEntity = roleRepository.findByName(newRole.name())
                 .orElseThrow(() -> new RuntimeException("Role '" + newRole.name() + "' not found in database setup."));
 
-        // Проверка: Има ли вече тази роля?
+        // Check: Does the user already have this role?
         boolean alreadyHasRole = target.getRoles().stream()
                 .anyMatch(r -> r.getName().equalsIgnoreCase(newRole.name()));
         if (alreadyHasRole) {
             throw new IllegalStateException("Error: The user already has this role.");
         }
 
-        // Обновяваме базата данни
+        // Update the database
         target.getRoles().add(roleEntity);
         userRepository.save(target);
 
-        // ЗАПИСВАМЕ ДЕЙСТВИЕТО В ОДИТ ЛОГА
+        // RECORD THE ACTION IN THE AUDIT LOG
         logAction(adminUser, "ASSIGN_ROLE", "USER", targetUserId, "Assigned role: " + newRole.name());
 
     }
 
-    // 2. Премахване на роля от потребител
+    // 2. Removing a role from a user
     public void revokeRole(User adminUser, int targetUserId, Role roleToRemove) {
-        // Проверка за валиден админ
+        // Check for a valid admin
         if (adminUser == null) {
             throw new IllegalArgumentException("Error: Invalid admin user.");
         }
 
-        // Проверка дали вършителят на действието е ADMIN
+        // Check that the action performer is an ADMIN
         if (!adminUser.hasRole(Role.ADMIN)) {
             throw new SecurityException("Error: Only an administrator (ADMIN) can remove roles.");
         }
 
-        // Проверка за опит за премахване на null роля
+        // Check for attempt to remove a null role
         if (roleToRemove == null) {
             throw new IllegalArgumentException("The role to be removed cannot be empty.");
         }
 
-        // Защита против "Admin Lockout" - Админът не може да премахне собствената си ADMIN роля!
+        // Protection against "Admin Lockout" - an admin cannot remove their own ADMIN role!
         if (adminUser.getId() == targetUserId && roleToRemove == Role.ADMIN) {
             throw new SecurityException("Error: You cannot remove your own administrator role to avoid losing access!");
         }
 
-        // Взимаме реалния потребител от базата
+        // Retrieve the actual user from the database
         UserEntity target = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new IllegalArgumentException("Target user not found."));
 
-        // Премахваме ролята от сета на Entity-то и проверяваме дали реално е имало какво да се премахне
+        // Remove the role from the entity's set and check if there was actually something to remove
         boolean isRemoved = target.getRoles().removeIf(r -> r.getName().equalsIgnoreCase(roleToRemove.name()));
         if (!isRemoved) {
             throw new IllegalArgumentException("Error: The user does not have this role to remove.");
         }
 
-        // Малка защита: Потребителят не може да остане без нито една роля в базата
+        // Small protection: A user cannot remain without any role in the database
         if (target.getRoles().isEmpty()) {
             throw new IllegalStateException("Error: A user must have at least one role.");
         }
 
-        // Обновяваме базата данни
+        // Update the database
         userRepository.save(target);
 
-        // ЗАПИСВАМЕ ДЕЙСТВИЕТО В ОДИТ ЛОГА
+        // RECORD THE ACTION IN THE AUDIT LOG
         logAction(adminUser, "REVOKE_ROLE", "USER", targetUserId, "Revoked role: " + roleToRemove.name());
     }
 
-    // 3. Деактивиране на потребител (само Админ може да го прави)
+    // 3. Deactivating a user (only Admin can do this)
     public void deactivateUser(User adminUser, int targetUserId) {
-        // Проверка за валиден админ
+        // Check for a valid admin
         if (adminUser == null) {
             throw new IllegalArgumentException("Error: Invalid admin user.");
         }
 
-        // Проверка за ADMIN
+        // Check for ADMIN
         if (!adminUser.hasRole(Role.ADMIN)) {
             throw new SecurityException("Error: Only an administrator (ADMIN) can deactivate accounts.");
         }
 
-        // Админът не може да деактивира сам себе си!
+        // An admin cannot deactivate their own account!
         if (adminUser.getId() == targetUserId) {
             throw new SecurityException("Error: You cannot deactivate your own account.");
         }
 
-        // Обновяваме базата данни
+        // Update the database
         UserEntity target = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found."));
 
@@ -143,23 +143,23 @@ public class UserService {
         target.setActive(false);
         userRepository.save(target);
 
-        // ЗАПИСВАМЕ ДЕЙСТВИЕТО В ОДИТ ЛОГА
+        // RECORD THE ACTION IN THE AUDIT LOG
         logAction(adminUser, "DEACTIVATE_USER", "USER", targetUserId, "Deactivated user account");
     }
 
-    // 4. Активиране на потребител (само Админ може да го прави)
+    // 4. Activating a user (only Admin can do this)
     public void activateUser(User adminUser, int targetUserId) {
-        // Проверка за валиден админ
+        // Check for a valid admin
         if (adminUser == null) {
             throw new IllegalArgumentException("Error: Invalid admin user.");
         }
 
-        // Проверка за ADMIN
+        // Check for ADMIN
         if (!adminUser.hasRole(Role.ADMIN)) {
             throw new SecurityException("Error: Only an administrator (ADMIN) can activate accounts.");
         }
 
-        // Обновяваме базата данни
+        // Update the database
         UserEntity target = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found."));
 
@@ -170,17 +170,17 @@ public class UserService {
         target.setActive(true);
         userRepository.save(target);
 
-        // ЗАПИСВАМЕ ДЕЙСТВИЕТО В ОДИТ ЛОГА
+        // RECORD THE ACTION IN THE AUDIT LOG
         logAction(adminUser, "ACTIVATE_USER", "USER", targetUserId, "Activated user account");
     }
 
-    // --- ПОМОЩЕН МЕТОД ЗА ОДИТ ЛОГ ---
+    // --- HELPER METHOD FOR AUDIT LOG ---
     private void logAction(User admin, String actionType, String entityType, Integer entityId, String details) {
         AuditLog log = new AuditLog();
-        log.setUser(userRepository.getReferenceById(admin.getId())); // Кой го е направил (Админът)
+        log.setUser(userRepository.getReferenceById(admin.getId())); // Who performed it (the Admin)
         log.setActionType(actionType);
         log.setEntityType(entityType);
-        log.setEntityId(entityId); // На кого го е направил
+        log.setEntityId(entityId); // On whom it was performed
         log.setDetails(details);
         log.setTimestamp(LocalDateTime.now());
 

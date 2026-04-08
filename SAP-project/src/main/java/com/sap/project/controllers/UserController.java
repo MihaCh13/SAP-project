@@ -26,15 +26,15 @@ public class UserController {
     private RoleRepository roleRepository;
 
     // ==========================================
-    // 1. Вход (Login)
-    // ==========================================
+// 1. Login
+// ==========================================
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> credentials) {
 
         String username = credentials.get("username");
         String password = credentials.get("password");
 
-        // НОВАТА СТРОГА ЗАЩИТА И ЗА LOGIN:
+        // NEW STRICT VALIDATION FOR LOGIN:
         if (username == null || username.trim().isEmpty() ||
                 password == null || password.trim().isEmpty()) {
             return ResponseEntity.badRequest().body("Error: Username and password are required and cannot be empty.");
@@ -47,7 +47,7 @@ public class UserController {
         if (userOpt.isPresent()) {
             UserEntity user = userOpt.get();
 
-            // ЗАЩИТА: Деактивиран ли е акаунтът?
+            // SECURITY CHECK: Is the account deactivated?
             if (!user.isActive()) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Error: Your account has been deactivated!");
             }
@@ -69,7 +69,7 @@ public class UserController {
     }
 
     // ==========================================
-    // 2. Регистрация на нов потребител (Само ADMIN)
+    // 2. Registration of a new user (ADMIN only)
     // ==========================================
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(
@@ -90,7 +90,7 @@ public class UserController {
                 return ResponseEntity.badRequest().body("Error: All fields (username, password, email, role) are required and cannot be empty.");
             }
 
-            // ЗАЩИТА: Заето ли е потребителското име?
+            // SECURITY: Check if username is already taken
             boolean usernameExists = userRepository.findAll().stream()
                     .anyMatch(u -> u.getUsername().equalsIgnoreCase(username.trim()));
             if (usernameExists) {
@@ -136,7 +136,7 @@ public class UserController {
     }
 
     // ==========================================
-    // 3. Добавяне на роля
+    // 3. Add Role (And automatic Reactivation)
     // ==========================================
     @PostMapping("/add-role")
     public ResponseEntity<?> addRoleToExistingUser(
@@ -144,18 +144,18 @@ public class UserController {
             @RequestBody Map<String, String> payload) {
 
         try {
-            // 1. Извличаме данните от заявката
+            // 1. Extract data from the request
             String targetUsername = payload.get("username");
             String rolesInput = payload.get("roles");
 
-            // 2. СТРОГА ЗАЩИТА (Новият код): Проверяваме за null или празни стрингове ("")
+            // 2. STRICT PROTECTION: Check for null or empty strings ("")
             if (targetUsername == null || targetUsername.trim().isEmpty() ||
                     rolesInput == null || rolesInput.trim().isEmpty()) {
 
                 return ResponseEntity.badRequest().body("Error: Username and roles cannot be empty.");
             }
 
-            // 3. Проверка дали заявителят е Админ
+            // 3. Check if the requester is an Admin
             UserEntity adminOpt = userRepository.findById(adminId)
                     .orElseThrow(() -> new RuntimeException("Administrator not found!"));
 
@@ -164,14 +164,14 @@ public class UserController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Error: Only administrators can assign roles.");
             }
 
-            // 4. Намиране на целевия потребител
+            // 4. Find the target user
             UserEntity targetUser = userRepository.findAll().stream()
                     .filter(u -> u.getUsername().equals(targetUsername))
                     .findFirst()
                     .orElseThrow(() -> new RuntimeException("Target user '" + targetUsername + "' not found!"));
 
-            // 5. Добавяне на ролите
-            // НОВА ЛОГИКА: Ако потребителят е бил деактивиран, го връщаме към живот!
+            // 5. Add the roles
+            // NEW LOGIC: If the user was deactivated, bring them back to life!
             boolean wasDeactivated = false;
             if (!targetUser.isActive()) {
                 targetUser.setActive(true);
@@ -182,13 +182,13 @@ public class UserController {
             for (String rName : roleNames) {
                 String cleanRoleName = rName.trim().toUpperCase();
 
-                // Защита от празни елементи при две запетаи (напр. "AUTHOR,,ADMIN")
+                // Protection against empty elements with double commas (e.g., "AUTHOR,,ADMIN")
                 if(cleanRoleName.isEmpty()) continue;
 
                 RoleEntity role = roleRepository.findByName(cleanRoleName)
                         .orElseThrow(() -> new RuntimeException("Role not found: " + cleanRoleName));
 
-                // Проверяваме дали вече няма тази роля, за да не я дублираме
+                // Check if they don't already have this role to avoid duplicates
                 if (!targetUser.getRoles().contains(role)) {
                     targetUser.getRoles().add(role);
                 }
@@ -196,14 +196,14 @@ public class UserController {
 
             userRepository.save(targetUser);
 
-            // 6. Изпращане на известие
+            // 6. Send notification
             NotificationEntity notif = new NotificationEntity();
             notif.setUser(targetUser);
             notif.setMessage("System Update: You have been granted new roles -> " + rolesInput.toUpperCase());
-            notif.setCreatedAt(java.time.LocalDateTime.now()); // Добра практика е да има дата
+            notif.setCreatedAt(java.time.LocalDateTime.now()); // Good practice to have a date
             notificationRepository.save(notif);
 
-            // Съставяме съобщението
+            // Compose the response message
             String responseMessage = "Roles [" + rolesInput.toUpperCase() + "] successfully added to user: " + targetUsername;
             if (wasDeactivated) {
                 responseMessage += " (User account was dormant and has been REACTIVATED!).";
@@ -217,7 +217,7 @@ public class UserController {
     }
 
     // ==========================================
-    // 4. Премахване на роля от съществуващ потребител
+    // 4. Remove role from an existing user
     // ==========================================
     @PostMapping("/remove-role")
     public ResponseEntity<?> removeRoleFromUser(
@@ -251,11 +251,11 @@ public class UserController {
                 String cleanRoleName = rName.trim().toUpperCase();
                 if (cleanRoleName.isEmpty()) continue;
 
-                // Намираме ролята в списъка на потребителя и я премахваме
+                // Find the role in the user's list and remove it
                 targetUser.getRoles().removeIf(r -> r.getName().equals(cleanRoleName));
             }
 
-            // НОВА ЛОГИКА: Защита от "потребител без нито една роля"
+            // NEW LOGIC: Protection against "user with no roles"
             boolean demotedToReader = false;
             if (targetUser.getRoles().isEmpty()) {
                 RoleEntity readerRole = roleRepository.findByName("READER")
@@ -281,7 +281,7 @@ public class UserController {
     }
 
     // ==========================================
-    // 5. Премахване (Деактивиране) на потребител
+    // 5. Remove (Deactivate) User
     // ==========================================
     @PostMapping("/deactivate")
     public ResponseEntity<?> deactivateUser(
@@ -303,7 +303,7 @@ public class UserController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Error: Only administrators can deactivate users.");
             }
 
-            // ЗАЩИТА: Предпазваме админа да не изтрие сам себе си по погрешка!
+            // PROTECTION: Preventing the admin from accidentally deactivating their own account!
             if (adminOpt.getUsername().equals(targetUsername)) {
                 return ResponseEntity.badRequest().body("Error: You cannot deactivate your own admin account!");
             }
@@ -313,7 +313,7 @@ public class UserController {
                     .findFirst()
                     .orElseThrow(() -> new RuntimeException("Target user '" + targetUsername + "' not found!"));
 
-            // Soft Delete: Правим потребителя неактивен
+            // Soft Delete: Making the user inactive
             targetUser.setActive(false);
             userRepository.save(targetUser);
 

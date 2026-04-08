@@ -76,7 +76,6 @@ public class ConsoleClient {
             System.out.println("11. [Admin] Deactivate (Delete) user account");
         }
 
-        // Поправихме номера на експорта да бъде 12 (следващият по ред)
         System.out.println("12. [Export] Download TXT or PDF");
         System.out.println("0. Logout");
         System.out.print("Select action: ");
@@ -96,7 +95,6 @@ public class ConsoleClient {
             case "10": if(isAdmin) removeRole(); else printDenied("ADMIN"); break;
             case "11": if(isAdmin) deactivateUser(); else printDenied("ADMIN"); break;
 
-            // Експортът вече е вързан към правилното число - 12
             case "12": exportMenu(); break;
 
             case "0":
@@ -151,31 +149,30 @@ public class ConsoleClient {
         System.out.println("\n--- DOCUMENT TIMELINE (ID: " + docId + ") ---");
         
         String response = sendRequest("GET", "/documents/" + docId + "/history", null);
-        
-        // Ако има грешка (напр. Access Denied), тя няма да започва с "[" (което е JSON масив)
+
         if (!response.trim().startsWith("[")) {
             System.out.println("[SERVER]: " + response);
             return;
         }
 
         try {
-            // Изчистваме масива и разделяме обектите
+            // Clear the array and split the objects
             String[] versions = response.replace("[", "").replace("]", "").split("},\\{");
-            
+
             for (String v : versions) {
-                // Изчистваме кавичките и скобите за конкретната версия
+                // Clean quotes and braces for the specific version
                 String clean = v.replace("{", "").replace("}", "").replace("\"", "");
-                
+
                 System.out.println("┌──────────────────────────────────────┐");
-                
-                // Разделяме полетата (Version, Status, Author, Preview)
+
+                // Split the fields (Version, Status, Author, Preview)
                 String[] fields = clean.split(",");
                 for (String field : fields) {
                     String[] kv = field.split(":");
                     if (kv.length >= 2) {
                         String key = kv[0].trim();
-                        // Събираме стойността обратно (в случай, че в Preview е имало запетая или двоеточие)
-                        String value = field.substring(field.indexOf(":") + 1).trim(); 
+                        // Reassemble the value (in case the Preview contained a comma or colon)
+                        String value = field.substring(field.indexOf(":") + 1).trim();
                         System.out.printf("│ %-10s : %s\n", key, value);
                     }
                 }
@@ -186,7 +183,7 @@ public class ConsoleClient {
         }
     }
 
-    // 2. ПОПРАВКА НА ГРОЗНИЯ JSON: Този метод превръща масивите в красиви списъци
+    // 2. Този метод превръща масивите в красиви списъци
     private static void printPrettyJson(String json) {
         if (json == null || json.isEmpty() || json.equals("[]")) {
             System.out.println("   No records found.");
@@ -197,9 +194,7 @@ public class ConsoleClient {
             // Премахваме скобите на масива и разделяме обектите
             String[] items = json.replace("[", "").replace("]", "").split("},\\{");
             for (String item : items) {
-                // Изчистваме кавичките и скобите
                 String cleanItem = item.replace("{", "").replace("}", "").replace("\"", "");
-                // Заменяме запетаите с хубав разделител
                 System.out.println(" * " + cleanItem.replace(",", " | "));
             }
         } catch (Exception e) {
@@ -226,7 +221,7 @@ public class ConsoleClient {
         System.out.println("\n--- CREATE NEW DOCUMENT ---");
         System.out.print("Document Title: "); String title = scanner.nextLine();
         System.out.print("Description: "); String desc = scanner.nextLine();
-        System.out.print("Initial Content: "); String content = scanner.nextLine(); // <-- ПИТАМЕ ЗА ТЕКСТА
+        System.out.print("Initial Content: "); String content = scanner.nextLine();
         
         String json = String.format("{\"title\":\"%s\",\"description\":\"%s\",\"content\":\"%s\"}", title, desc, content);
         String res = sendRequest("POST", "/documents", json);
@@ -272,42 +267,42 @@ public class ConsoleClient {
     private static void exportMenu() {
         System.out.print("Version ID to export: "); String vId = scanner.nextLine();
         System.out.print("Format (txt / pdf): "); String type = scanner.nextLine().toLowerCase();
-        
+
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(API_URL + "/documents/versions/" + vId + "/" + type))
                     .header("X-User-Id", loggedInUserId.toString()).GET().build();
-            
-            // 1. Вземаме отговора в паметта (като масив от байтове), вместо веднага да правим файл
+
+            // 1. Fetch the response into memory (as a byte array) instead of creating a file immediately
             HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
-            
-            // 2. Проверяваме дали сървърът ни е разрешил (Status 200)
+
+            // 2. Check if the server authorized the request (Status 200)
             if (response.statusCode() == 200) {
                 Path path = Paths.get("exported_doc_v" + vId + "." + type);
-                java.nio.file.Files.write(path, response.body()); // Записваме байтовете във файл
+                java.nio.file.Files.write(path, response.body()); // Writing the bytes to a file
                 System.out.println("\n>>> File saved successfully to: " + path.toAbsolutePath());
             } else {
-                // 3. Ако сървърът е върнал грешка (напр. 403 Forbidden или 400 Bad Request),
-                // превръщаме байтовете обратно в текст и ги показваме!
+                // 3. If the server returned an error (e.g., 403 Forbidden or 400 Bad Request),
+                // convert the bytes back to text and display them!
                 String errorMessage = new String(response.body(), java.nio.charset.StandardCharsets.UTF_8);
                 System.out.println("\n[SERVER ERROR]: " + errorMessage);
             }
-            
+
         } catch (Exception e) {
             System.out.println("\n[ERROR] Export failed: " + e.getMessage());
         }
     }
 
-    // Променихме този метод да връща String, за да можем да форматираме резултата горе
+    // Changed this method to return a String so we can format the result above
     private static String sendRequest(String method, String path, String body) {
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(API_URL + path))
-                    .header("X-User-Id", loggedInUserId != null ? loggedInUserId.toString() : "1"); 
+                    .header("X-User-Id", loggedInUserId != null ? loggedInUserId.toString() : "1");
 
             if (body != null && !body.isEmpty()) {
                 builder.header("Content-Type", "application/json")
-                       .method(method, HttpRequest.BodyPublishers.ofString(body));
+                        .method(method, HttpRequest.BodyPublishers.ofString(body));
             } else {
                 builder.method(method, HttpRequest.BodyPublishers.noBody());
             }
@@ -318,6 +313,7 @@ public class ConsoleClient {
             return "Connection Error: " + e.getMessage();
         }
     }
+
     private static void addRole() {
         System.out.println("\n--- ADD ROLE TO EXISTING USER ---");
         System.out.print("Target Username: "); String uName = scanner.nextLine();
@@ -327,15 +323,16 @@ public class ConsoleClient {
         String res = sendRequest("POST", "/users/add-role", json);
         System.out.println("\n[SERVER]: " + res);
     }
+
     private static void checkNotifications() {
         String response = sendRequest("GET", "/notifications", null);
-        
-        // Ако отговорът не е празен масив "[]" и не е грешка, значи имаме нови известия!
+
+        // If the response is not an empty array "[]" and not an error, we have new notifications!
         if (response != null && !response.trim().equals("[]") && response.startsWith("[")) {
             System.out.println("\n========================================");
             System.out.println(" 🔔 YOU HAVE NEW NOTIFICATIONS! 🔔");
             System.out.println("========================================");
-            printPrettyJson("\n" + response); // Използваме стария ни метод за красиво форматиране
+            printPrettyJson("\n" + response);
             System.out.println("========================================");
         }
     }

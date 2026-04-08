@@ -5,28 +5,28 @@ import java.time.LocalDateTime;
 
 public class Version {
 
-    // FINAL полета - те са неизменяеми след създаване на обекта!
+    // FINAL fields - they are immutable after the object is created!
     private final int id;
     private final int documentId;
     private final int versionNumber;
     private final String content;
-    private final int createdBy;            // ID на Автора
+    private final int createdBy;            // ID of the Author
     private final LocalDateTime createdAt;
-    private final Integer parentVersionId;  // Може да е null за първа версия
+    private final Integer parentVersionId;  // Can be null for the first version
 
-    // Променливи полета - те се променят по време на работния процес
+    // Mutable fields - they change during the workflow process
     private Status status;
-    private Integer approvedBy;             // ID на Рецензента
+    private Integer approvedBy;             // ID of the Reviewer
     private LocalDateTime approvedAt;
 
-    // Конструктор - тук задаваме всички начални стойности
+    // Constructor
     public Version(int id, int documentId, int versionNumber, String content, int createdBy, Integer parentVersionId) {
-        // Базови проверки за валидност на числата (ID-тата не могат да са отрицателни)
+        // Basic validation checks for numbers (IDs cannot be negative)
         if (id <= 0 || documentId <= 0 || versionNumber <= 0 || createdBy <= 0) {
             throw new IllegalArgumentException("IDs and version number must be positive numbers.");
         }
 
-        // 1. ЗАЩИТА НА СЪДЪРЖАНИЕТО
+        // 1. CONTENT PROTECTION
         if (content == null || content.trim().isEmpty()) {
             throw new IllegalArgumentException("Version content cannot be empty.");
         }
@@ -39,11 +39,11 @@ public class Version {
         this.createdAt = LocalDateTime.now();
         this.parentVersionId = parentVersionId;
 
-        // Всяка нова версия започва като чернова
+        // Every new version starts as a draft
         this.status = Status.DRAFT;
     }
 
-    // --- GETTERS (Методи за четене) ---
+    // --- GETTERS (Read methods) ---
     public int getId() { return id; }
     public int getDocumentId() { return documentId; }
     public int getVersionNumber() { return versionNumber; }
@@ -56,9 +56,9 @@ public class Version {
     public LocalDateTime getApprovedAt() { return approvedAt; }
 
 
-    // --- БИЗНЕС ЛОГИКА ---
+// --- BUSINESS LOGIC ---
 
-    // 1. Изпращане за преглед
+    // 1. Sending for review
     public void submitForReview() {
         if (this.status != Status.DRAFT) {
             throw new IllegalStateException("Only drafts can be submitted for review.");
@@ -66,9 +66,9 @@ public class Version {
         this.status = Status.PENDING_REVIEW;
     }
 
-    // 2. Одобряване от рецензент
+    // 2. Approval by a reviewer
     public void approve(Integer reviewerId) {
-        // 2. ЗАЩИТА НА РЕЦЕНЗЕНТА
+        // 2. REVIEWER PROTECTION
         if (reviewerId == null || reviewerId <= 0) {
             throw new IllegalArgumentException("Invalid reviewer ID.");
         }
@@ -80,12 +80,12 @@ public class Version {
         this.approvedAt = LocalDateTime.now();
     }
 
-    // 3. Отхвърляне от рецензент
+    // 3. Rejection by a reviewer
     public void reject() {
         if (this.status != Status.PENDING_REVIEW) {
             throw new IllegalStateException("The document must be pending review to be rejected.");
         }
         this.status = Status.REJECTED;
-        // Забележка: В базата нямаме rejected_by, така че тук променяме само статуса
+        // Note: In the database we do not have rejected_by, so here we only change the status
     }
 }

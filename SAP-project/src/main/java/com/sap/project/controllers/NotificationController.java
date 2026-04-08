@@ -17,19 +17,19 @@ public class NotificationController {
 
     @GetMapping
     public ResponseEntity<?> getUnreadNotifications(@RequestHeader("X-User-Id") Integer userId) {
-        // 1. Вземаме всички непрочетени
+        // 1. Fetch all unread notifications
         List<NotificationEntity> unread = notificationRepository.findByUserIdAndIsReadFalse(userId);
-        
-        // 2. Извличаме само текста на съобщенията
+
+        // 2. Extract only the message text
         List<String> messages = unread.stream().map(NotificationEntity::getMessage).toList();
-        
-        // 3. Маркираме ги като прочетени и ги записваме в базата
+
+        // 3. Mark them as read and save to the database
         for (NotificationEntity notif : unread) {
             notif.setRead(true);
         }
         notificationRepository.saveAll(unread);
-        
-        // 4. Връщаме съобщенията на Клиента
+
+        // 4. Return the messages to the client
         return ResponseEntity.ok(messages);
     }
 }

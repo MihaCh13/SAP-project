@@ -4,45 +4,45 @@ import java.time.LocalDateTime;
 
 public class Document {
 
-    // --- Неизменяеми след създаване ---
+    // --- Immutable after creation ---
     private final int id;
-    private final int createdBy;          // ID на създателя (автора)
-    private final LocalDateTime createdAt; // Дата и час на създаване
+    private final int createdBy;          // ID of the creator (author)
+    private final LocalDateTime createdAt; // Date and time of creation
 
-    // --- Метаданни, които могат да се редактират ---
-    private String title;                 // Заглавие
-    private String description;           // Описание
-    private boolean isActive;             // Дали документът е активен или архивиран
-    private Integer activeVersionId;      // ID на текущата активна версия (може да е null)
+    // --- Editable metadata ---
+    private String title;                 // Title
+    private String description;           // Description
+    private boolean isActive;             // Whether the document is active or archived
+    private Integer activeVersionId;      // ID of the current active version (can be null)
 
-    // Конструктор
+    // Constructor
     public Document(int id, String title, String description, int createdBy) {
-        // 1. ЗАЩИТА НА ЧИСЛАТА
+        // 1. NUMBER PROTECTION
         if (id <= 0 || createdBy <= 0) {
             throw new IllegalArgumentException("Document and creator IDs must be positive numbers.");
         }
         this.id = id;
         this.createdBy = createdBy;
 
-        // 2. ЗАЩИТА НА ЗАГЛАВИЕТО (използваме логиката от сетъра)
+        // 2. TITLE PROTECTION (using setter logic)
         if (title == null || title.trim().isEmpty()) {
             throw new IllegalArgumentException("The title cannot be empty.");
         }
         this.title = title;
 
-        // 3. ЗАЩИТА НА ОПИСАНИЕТО (Предпазва от NullPointerException)
+        // 3. DESCRIPTION PROTECTION (Prevents NullPointerException)
         this.description = (description != null) ? description : "";
 
         this.createdAt = LocalDateTime.now();
 
-        // По подразбиране, когато създадем нов документ, той е активен
+        // By default, when a new document is created, it is active
         this.isActive = true;
 
-        // Първоначално документът няма активна (одобрена) версия
+        // Initially, the document has no active (approved) version
         this.activeVersionId = null;
     }
 
-    // --- GETTERS (Методи за четене) ---
+    // --- GETTERS (Read methods) ---
     public int getId() { return id; }
     public String getTitle() { return title; }
     public String getDescription() { return description; }
@@ -50,12 +50,12 @@ public class Document {
     public boolean isActive() { return isActive; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 
-    // Активна версия
+    // Active version
     public Integer getActiveVersionId() { return activeVersionId; }
 
-// --- SETTERS & БИЗНЕС ЛОГИКА ---
+// --- SETTERS & BUSINESS LOGIC ---
 
-    // Позволяваме редакция на заглавието
+    // Allowing title editing
     public void setTitle(String title) {
         if (title == null || title.trim().isEmpty()) {
             throw new IllegalArgumentException("The title cannot be empty.");
@@ -63,22 +63,22 @@ public class Document {
         this.title = title;
     }
 
-    // Позволяваме редакция на описанието
+    // Allowing description editing
     public void setDescription(String description) {
-        // Отново се пазим от null
+        // Again, protecting against null
         this.description = (description != null) ? description : "";
     }
 
-    // Активната версия (извиква се, когато рецензент одобри версия)
+    // Active version (called when a reviewer approves a version)
     public void setActiveVersionId(Integer activeVersionId) {
-        // 4. ЗАЩИТА НА АКТИВНАТА ВЕРСИЯ (Ако не е null, трябва да е над 0)
+        // 4. ACTIVE VERSION PROTECTION (If not null, must be greater than 0)
         if (activeVersionId != null && activeVersionId <= 0) {
             throw new IllegalArgumentException("The active version ID must be a positive number.");
         }
         this.activeVersionId = activeVersionId;
     }
 
-    // Архивиране/деактивиране на документа
+    // Archiving/deactivating the document
     public void archive() {
         if (!this.isActive) {
             throw new IllegalStateException("The document is already archived.");
@@ -86,7 +86,7 @@ public class Document {
         this.isActive = false;
     }
 
-    // Възстановяване на документа
+    // Restoring the document
     public void activate() {
         if (this.isActive) {
             throw new IllegalStateException("The document is already active.");

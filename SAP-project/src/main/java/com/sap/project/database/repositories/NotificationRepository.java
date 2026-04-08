@@ -7,6 +7,6 @@ import java.util.List;
 
 @Repository
 public interface NotificationRepository extends JpaRepository<NotificationEntity, Integer> {
-    // Намира всички НЕПРОЧЕТЕНИ известия за даден потребител
+    // Finds all UNREAD notifications for a specific user
     List<NotificationEntity> findByUserIdAndIsReadFalse(Integer userId);
 }

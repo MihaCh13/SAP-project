@@ -33,10 +33,10 @@ public class DataInitializer {
             VersionRepository versionRepository) {
 
         return args -> {
-            // Списък, в който ще събираме съобщенията, за да ги принтираме накрая
+            // List in which we will collect messages to print them at the end
             List<String> initSummary = new ArrayList<>();
 
-            // --- 1. СЪЗДАВАНЕ НА РОЛИ ---
+            // --- 1. CREATING ROLES ---
             RoleEntity adminRole = roleRepository.findByName(Role.ADMIN.name())
                     .orElseGet(() -> {
                         RoleEntity role = new RoleEntity();
@@ -65,7 +65,7 @@ public class DataInitializer {
                         return roleRepository.save(role);
                     });
 
-            // --- 2. СЪЗДАВАНЕ НА ПОТРЕБИТЕЛИ ---
+            // --- 2. CREATING USERS ---
             createUser(userRepository, "admin", "admin@sap.com", "pass123", Set.of(adminRole), initSummary);
             createUser(userRepository, "reviewer", "reviewer@sap.com", "rev123", Set.of(reviewerRole), initSummary);
             UserEntity pureAuthor = createUser(userRepository, "author", "author@sap.com", "auth123", Set.of(authorRole), initSummary);
@@ -73,7 +73,7 @@ public class DataInitializer {
             createUser(userRepository, "lead_author", "lead@sap.com", "lead123", Set.of(authorRole, reviewerRole), initSummary);
             createUser(userRepository, "super_user", "super@sap.com", "super123", Set.of(adminRole, authorRole, reviewerRole), initSummary);
 
-            // --- 3. СЪЗДАВАНЕ НА ТЕСТОВ ДОКУМЕНТ ---
+            // --- 3. CREATING A TEST DOCUMENT ---
             if (documentRepository.count() == 0) {
                 DocumentEntity doc = new DocumentEntity();
                 doc.setTitle("First test document");
@@ -95,7 +95,7 @@ public class DataInitializer {
                 initSummary.add("📄 Test Document and Version (V1 - PENDING_REVIEW) created!");
             }
 
-            // --- 4. ПРИНТИРАНЕ НА КРАСИВ РЕЗУЛТАТ НАКРАЯ ---
+            // --- 4. PRINTING A NICE RESULT AT THE END ---
             if (!initSummary.isEmpty()) {
                 System.out.println("\n=========================================================");
                 System.out.println("✅ DATABASE INITIALIZATION SUMMARY:");
@@ -108,7 +108,7 @@ public class DataInitializer {
         };
     }
 
-    // --- ПОМОЩЕН МЕТОД ЗА СЪЗДАВАНЕ НА ПОТРЕБИТЕЛИ ---
+    // --- HELPER METHOD FOR CREATING USERS ---
     private UserEntity createUser(UserRepository repo, String username, String email, String password, Set<RoleEntity> roles, List<String> initSummary) {
         return repo.findByUsername(username).orElseGet(() -> {
             UserEntity user = new UserEntity();
@@ -121,7 +121,7 @@ public class DataInitializer {
             user.setRoles(new HashSet<>(roles));
             UserEntity saved = repo.save(user);
 
-            // Добавяме съобщението в списъка, вместо да го принтираме веднага
+            // Add the message to the list instead of printing it immediately
             initSummary.add("👤 User created: " + username + " (Roles: " + roles.size() + ")");
             return saved;
         });

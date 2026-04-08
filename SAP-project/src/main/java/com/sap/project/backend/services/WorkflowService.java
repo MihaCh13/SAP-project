@@ -18,10 +18,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
-@Transactional // ГАРАНТИРА: Или всичко се записва в базата, или нищо!
+@Transactional // GUARANTEES: Either everything is saved in the database, or nothing!
 public class WorkflowService {
 
-    // Връзки към всички необходими таблици
+    // Connections to all necessary tables
     private final DocumentRepository documentRepository;
     private final VersionRepository versionRepository;
     private final UserRepository userRepository;
@@ -44,18 +44,18 @@ public class WorkflowService {
         this.notificationRepository = notificationRepository;
     }
 
-    // 1. Създаване на нов документ
+    // 1. Creating a new document
     public void createDocument(User user, String title, String description, String content) {
         if (user == null) throw new IllegalArgumentException("Error: User is null.");
         if (!user.hasRole(Role.AUTHOR)) {
             throw new SecurityException("Error: Only users with the AUTHOR role can create documents.");
         }
 
-        // --- НОВА ВАЛИДАЦИЯ ЗА УНИКАЛНО ЗАГЛАВИЕ ---
+        // --- VALIDATION FOR UNIQUE TITLE ---
         boolean isTitleTaken = documentRepository.findAll().stream()
-                .filter(doc -> doc.getTitle().equalsIgnoreCase(title.trim())) // Търсим документ със същото име (без значение малки/големи букви)
+                .filter(doc -> doc.getTitle().equalsIgnoreCase(title.trim())) // Search for a document with the same name (case-insensitive)
                 .anyMatch(doc -> {
-                    // Проверяваме дали този документ има поне една ОДОБРЕНА версия
+                    // Check if this document has at least one APPROVED version
                     List<VersionEntity> versions = versionRepository.findByDocumentId(doc.getId());
                     return versions.stream().anyMatch(v -> v.getStatus() == Status.APPROVED);
                 });
@@ -64,7 +64,7 @@ public class WorkflowService {
             throw new RuntimeException("Error: A document with the title '" + title + "' already exists and is APPROVED!");
         }
 
-        // Записваме Документа в базата
+        // Save the Document in the database
         DocumentEntity docEntity = new DocumentEntity();
         docEntity.setTitle(title);
         docEntity.setDescription(description);
@@ -73,7 +73,7 @@ public class WorkflowService {
         docEntity.setActive(true);
         docEntity = documentRepository.save(docEntity);
 
-        // Записваме първата Версия в базата
+        // Save the first Version in the database
         VersionEntity verEntity = new VersionEntity();
         verEntity.setDocument(docEntity);
         verEntity.setVersionNumber(1);
@@ -84,13 +84,13 @@ public class WorkflowService {
         versionRepository.save(verEntity);
     }
 
-    // 2. Редактиране (Нова версия)
+    // 2. Editing
     public void editDocument(User user, int parentVersionId, String newContent) {
         if (!user.hasRole(Role.AUTHOR)) {
             throw new SecurityException("Error: Only users with the AUTHOR role can edit documents.");
         }
 
-        // Намираме старата версия от базата
+        // Retrieve the old version from the database
         VersionEntity parentVersion = versionRepository.findById(parentVersionId)
                 .orElseThrow(() -> new IllegalArgumentException("Error: Parent version not found."));
 
@@ -98,16 +98,16 @@ public class WorkflowService {
             throw new IllegalStateException("Error: Cannot create a new version while the current one is PENDING_REVIEW.");
         }
 
-        // Намираме общия брой версии на този документ до момента
+        // Find the total number of versions of this document so far
         List<VersionEntity> allVersions = versionRepository.findByDocumentId(parentVersion.getDocument().getId());
         int currentVersionCount = allVersions.size();
 
-        // Ако номерът на версията, която се опитват да редактират, е по-малък от общия брой, значи това е стара версия!
+        // If the version number being edited is less than the total count, it is an old version!
         if (parentVersion.getVersionNumber() < currentVersionCount) {
             throw new IllegalStateException("Error: You can only create a new draft from the latest active version.");
         }
 
-        // Записваме новата версия
+        // Save the new version
         VersionEntity newVersion = new VersionEntity();
         newVersion.setDocument(parentVersion.getDocument());
         newVersion.setVersionNumber(currentVersionCount + 1);
@@ -119,7 +119,7 @@ public class WorkflowService {
         versionRepository.save(newVersion);
     }
 
-    // 3. Изпращане за преглед
+    // 3. Sending for review
     public void submitForReview(User user, int versionId) {
         VersionEntity version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new IllegalArgumentException("Error: Version not found."));
@@ -138,7 +138,7 @@ public class WorkflowService {
         versionRepository.save(version);
     }
 
-    // 4. Одобряване
+    // 4. Approval
     public void approveDocument(User user, int versionId, String commentText) {
         VersionEntity version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new IllegalArgumentException("Error: Version not found."));
@@ -158,7 +158,7 @@ public class WorkflowService {
         version.setApprovedAt(LocalDateTime.now());
         versionRepository.save(version);
 
-        // Запазваме коментара
+        // Save the comment
         saveComment(user.getId(), version, commentText);
 
         DocumentActiveVersion activeVersion = activeVersionRepository.findById(version.getDocument().getId())
@@ -167,14 +167,14 @@ public class WorkflowService {
         activeVersion.setDocument(version.getDocument());
         activeVersion.setVersion(version);
         activeVersion.setActivatedAt(LocalDateTime.now());
-        activeVersionRepository.save(activeVersion); // Записваме в таблицата за активни версии
+        activeVersionRepository.save(activeVersion); // Save in the table for active versions
 
-        // ПРАЩАМЕ ИЗВЕСТИЕ (Добавката от колегата)
+        // SEND NOTIFICATION (Colleague's addition)
         sendNotification(version.getCreatedBy(),
                 "Good news! Your document '" + version.getDocument().getTitle() + "' (V" + version.getVersionNumber() + ") was APPROVED.");
     }
 
-    // 5. Отхвърляне
+    // 5. Rejection
     public void rejectDocument(User user, int versionId, String commentText) {
         VersionEntity version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new IllegalArgumentException("Error: Version not found."));
@@ -192,15 +192,15 @@ public class WorkflowService {
         version.setStatus(Status.REJECTED);
         versionRepository.save(version);
 
-        // Запазваме коментара
+        // Save the comment
         saveComment(user.getId(), version, commentText);
 
-        // ПРАЩАМЕ ИЗВЕСТИЕ (Добавката от колегата)
+        // SEND NOTIFICATION (Colleague's addition)
         sendNotification(version.getCreatedBy(),
                 "Attention: Your document '" + version.getDocument().getTitle() + "' (V" + version.getVersionNumber() + ") was REJECTED.");
     }
 
-    // 6. Четене на документ
+    // 6. Reading a document
     public VersionEntity viewVersion(User user, int versionId) {
         VersionEntity version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new IllegalArgumentException("Error: Version not found."));
@@ -217,12 +217,12 @@ public class WorkflowService {
             }
         }
 
-        return version; // Връщаме обекта, за да може API-то да го покаже!
+        return version; // Return the object so that the API can display it!
     }
 
-    // --- ПОМОЩНИ МЕТОДИ ---
+    // --- HELPER METHODS ---
 
-    // Помощен метод за записване на коментари
+    // Helper method for saving comments
     private void saveComment(int userId, VersionEntity version, String commentText) {
         if (commentText != null && !commentText.trim().isEmpty()) {
             CommentEntity comment = new CommentEntity();
@@ -243,7 +243,7 @@ public class WorkflowService {
         notificationRepository.save(notif);
     }
 
-    // --- ЕКСПОРТ ФУНКЦИИ ---
+    // --- EXPORT FUNCTIONS ---
 
     public String exportVersionToText(VersionEntity vEntity) {
         StringBuilder sb = new StringBuilder();
@@ -258,7 +258,7 @@ public class WorkflowService {
         sb.append("Date:        ").append(vEntity.getCreatedAt()).append("\n");
         sb.append("----------------------------------------\n");
         sb.append("CONTENT:\n");
-        sb.append(vEntity.getContent()); // ТУК Е САМОТО СЪДЪРЖАНИЕ!
+        sb.append(vEntity.getContent()); // THIS IS THE CONTENT ITSELF ONLY!
         sb.append("\n----------------------------------------\n");
         return sb.toString();
     }

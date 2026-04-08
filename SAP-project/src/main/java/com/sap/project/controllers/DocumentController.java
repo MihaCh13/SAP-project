@@ -39,46 +39,46 @@ public class DocumentController {
     private DocumentRepository documentRepository;
 
     // ==========================================
-    // --- 0. ВЗЕМАНЕ НА ВСИЧКИ ДОКУМЕНТИ ---
+    // --- 0. GET ALL DOCUMENTS ---
     // ==========================================
     @GetMapping
     public ResponseEntity<?> getAllDocuments(@RequestHeader("X-User-Id") Integer userId) {
         try {
-            // 1. Взимаме кой е потребителят, който пита за документите
+            // 1. Get the user who is requesting the documents
             User userModel = getUserModelById(userId);
 
-            // 2. Взимаме всички документи от базата
+            // 2. Retrieve all documents from the database
             List<DocumentEntity> allDocs = documentRepository.findAll();
 
-            // 3. ФИЛТРАЦИЯТА: Минаваме през всеки документ
+            // 3. FILTERING: Iterate through each document
             List<Map<String, Object>> response = allDocs.stream()
                     .map(doc -> {
-                        // Взимаме всички версии на конкретния документ
+                        // Get all versions of the specific document
                         List<VersionEntity> versions = versionRepository.findByDocumentId(doc.getId());
 
-                        // Използваме нашия брониран метод canViewVersion, за да видим кои версии са разрешени
+                        // Use our protected method canViewVersion to see which versions are allowed
                         List<VersionEntity> visibleVersions = versions.stream()
                                 .filter(v -> canViewVersion(userModel, v))
                                 .collect(Collectors.toList());
 
-                        // АКО ПОТРЕБИТЕЛЯТ НЯМА ДОСТЪП ДО НИТО ЕДНА ВЕРСИЯ -> КРИЕМ ЦЕЛИЯ ДОКУМЕНТ (Връщаме null)
+                        // IF THE USER HAS NO ACCESS TO ANY VERSION -> HIDE THE ENTIRE DOCUMENT (Return null)
                         if (visibleVersions.isEmpty()) {
                             return null;
                         }
 
-                        // Взимаме най-новата версия, която този човек има право да види
+                        // Get the latest version that this user is allowed to see
                         VersionEntity latestVisible = visibleVersions.get(visibleVersions.size() - 1);
 
-                        // Връщаме информацията към конзолата
+                        // Return the information to the client
                         return Map.<String, Object>of(
                                 "ID", doc.getId(),
                                 "Title", doc.getTitle(),
                                 "Version", "V" + latestVisible.getVersionNumber(),
-                                "Status", latestVisible.getStatus().toString(), // Вече ще пише DRAFT, PENDING или APPROVED
+                                "Status", latestVisible.getStatus().toString(), // Will show DRAFT, PENDING, or APPROVED
                                 "Author", latestVisible.getCreatedBy() != null ? latestVisible.getCreatedBy().getUsername() : "Unknown"
                         );
                     })
-                    .filter(java.util.Objects::nonNull) // Изтриваме всички null записи (скритите документи)
+                    .filter(java.util.Objects::nonNull) // Remove all null entries (hidden documents)
                     .collect(Collectors.toList());
 
             return ResponseEntity.ok(response);
@@ -89,7 +89,7 @@ public class DocumentController {
         }
     }
 
-    // --- 1. СЪЗДАВАНЕ НА ДОКУМЕНТ ---
+    // --- 1. CREATING A DOCUMENT ---
     @PostMapping
     public ResponseEntity<String> createNewDocument(
             @RequestHeader("X-User-Id") Integer userId,
@@ -111,7 +111,7 @@ public class DocumentController {
         }
     }
 
-    // --- 2. РЕДАКТИРАНЕ НА ДОКУМЕНТ (НОВА ВЕРСИЯ) ---
+    // --- 2. EDITING A DOCUMENT (NEW VERSION) ---
     @PostMapping("/{docId}/versions")
     public ResponseEntity<String> editDocument(
             @PathVariable Integer docId,
@@ -120,7 +120,7 @@ public class DocumentController {
         try {
             User authorModel = getUserModelById(userId);
 
-            // Намираме последната версия на този документ
+            // Find the latest version of this document
             List<VersionEntity> versions = versionRepository.findByDocumentId(docId);
             if (versions.isEmpty()) throw new RuntimeException("Document has no versions!");
             VersionEntity latestVersion = versions.get(versions.size() - 1);
@@ -134,7 +134,7 @@ public class DocumentController {
         }
     }
 
-    // --- 3. ИЗПРАЩАНЕ ЗА ПРЕГЛЕД ---
+    // --- 3. SENDING FOR REVIEW ---
     @PostMapping("/versions/{versionId}/submit")
     public ResponseEntity<String> submitForReview(
             @PathVariable Integer versionId,
@@ -148,7 +148,7 @@ public class DocumentController {
         }
     }
 
-    // --- 4. ОДОБРЯВАНЕ ---
+    // --- 4. APPROVAL ---
     @PutMapping("/versions/{versionId}/approve")
     public ResponseEntity<String> approveVersion(
             @PathVariable Integer versionId,
@@ -163,7 +163,7 @@ public class DocumentController {
         }
     }
 
-    // --- 5. ОТХВЪРЛЯНЕ ---
+    // --- 5. REJECTION ---
     @PostMapping("/versions/{versionId}/reject")
     public ResponseEntity<String> rejectVersion(
             @PathVariable Integer versionId,
@@ -178,20 +178,20 @@ public class DocumentController {
         }
     }
 
-    // --- 6. ИСТОРИЯ НА ДОКУМЕНТ ---
+    // --- 6. DOCUMENT HISTORY ---
     @GetMapping("/{docId}/history")
     public ResponseEntity<?> getDocumentHistory(@PathVariable Integer docId, @RequestHeader("X-User-Id") Integer userId) {
         try {
             User userModel = getUserModelById(userId);
 
-            // Филтрираме и "смачкваме" сложния обект до прост, четим масив
+            // Filter and "flatten" the complex object into a simple, readable array
             List<Map<String, String>> historySummary = versionRepository.findByDocumentId(docId).stream()
                     .filter(v -> canViewVersion(userModel, v))
                     .map(v -> {
                         String content = v.getContent();
                         String preview = content.length() > 40 ? content.substring(0, 40) + "..." : content;
                         return Map.<String, String>of(
-                                // ТУК Е ВАЖНАТА ПРОМЯНА: Добавяме ID-то в скоби
+                                // IMPORTANT CHANGE: Add the ID in brackets
                                 "Version", "V" + v.getVersionNumber() + " [ID: " + v.getId() + "]",
                                 "Status", v.getStatus().toString(),
                                 "Author", v.getCreatedBy() != null ? v.getCreatedBy().getUsername() : "Unknown",
@@ -209,12 +209,12 @@ public class DocumentController {
         }
     }
 
-    // --- 7. ЕКСПОРТ (TXT И PDF) ---
+    // --- 7. EXPORT (TXT AND PDF) ---
     @GetMapping("/versions/{versionId}/txt")
     public ResponseEntity<?> exportToTxt(@PathVariable Integer versionId, @RequestHeader("X-User-Id") Integer userId) {
         try {
             User userModel = getUserModelById(userId);
-            VersionEntity vEntity = workflowService.viewVersion(userModel, versionId); // Твоят метод за сигурност
+            VersionEntity vEntity = workflowService.viewVersion(userModel, versionId); // Your security method
 
             String fileContent = workflowService.exportVersionToText(vEntity);
             byte[] data = fileContent.getBytes();
@@ -232,7 +232,7 @@ public class DocumentController {
     public ResponseEntity<?> exportToPdf(@PathVariable Integer versionId, @RequestHeader("X-User-Id") Integer userId) {
         try {
             User userModel = getUserModelById(userId);
-            VersionEntity vEntity = workflowService.viewVersion(userModel, versionId); // Твоят метод за сигурност
+            VersionEntity vEntity = workflowService.viewVersion(userModel, versionId); // Your security method
 
             byte[] pdfData = workflowService.exportVersionToPdf(vEntity);
 
@@ -245,57 +245,57 @@ public class DocumentController {
     }
 
     // ==========================================
-    // ПОМОЩНИ МЕТОДИ
+    // HELPER METHODS
     // ==========================================
 
     /**
-     * Използва твоя UserMapper, за да вземе потребителя.
+     * Uses your UserMapper to fetch the user.
      */
     private User getUserModelById(Integer userId) {
         UserEntity uEntity = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
-        return UserMapper.toModel(uEntity); // <-- Твоят чист мапър!
+        return UserMapper.toModel(uEntity); // <-- Your clean mapper!
     }
 
     /**
-     * Помощен метод за филтриране кой какво вижда в историята.
+     * Helper method to filter who can see what in the history.
      */
     private boolean canViewVersion(User user, VersionEntity v) {
-        // 1. АДМИН -  вижда всичко (включително REJECTED и DRAFT на други хора)
+        // 1. ADMIN - sees everything (including REJECTED and DRAFT of other users)
         if (user.getRoles().contains(Role.ADMIN)) {
             return true;
         }
 
-        // 2. ЗАЩИТА ЗА READER - Ако потребителят е САМО Reader, спираме го веднага, ако версията не е одобрена
+        // 2. PROTECTION FOR READER - If the user is ONLY Reader, block immediately if the version is not approved
         boolean isOnlyReader = user.getRoles().contains(Role.READER) && user.getRoles().size() == 1;
         if (isOnlyReader && v.getStatus() != com.sap.project.backend.enums.Status.APPROVED) {
             return false;
         }
 
-        // 3. ОБЩ ДОСТЪП - Всички останали (Author, Reviewer, Reader с други роли) виждат APPROVED документи
+        // 3. GENERAL ACCESS - All others (Author, Reviewer, Reader with other roles) see APPROVED documents
         if (v.getStatus() == com.sap.project.backend.enums.Status.APPROVED) {
             return true;
         }
 
-        // 4. СПЕЦИФИЧНА ЛОГИКА ЗА REJECTED (Отхвърлени)
+        // 4. SPECIFIC LOGIC FOR REJECTED
         if (v.getStatus() == com.sap.project.backend.enums.Status.REJECTED) {
             boolean isOwner = v.getCreatedBy() != null && v.getCreatedBy().getId().equals(user.getId());
             boolean isReviewer = user.getRoles().contains(Role.REVIEWER);
-            // Отхвърлените се виждат само от собственика им или от Рецензент (за справка)
+            // Rejected versions are visible only to their owner or a Reviewer (for reference)
             return isOwner || isReviewer;
         }
 
-        // 5. КОМБИНИРАНИ ПРАВА ЗА ОСТАНАЛИТЕ СТАТУСИ (DRAFT и PENDING_REVIEW)
+        // 5. COMBINED PERMISSIONS FOR OTHER STATUSES (DRAFT and PENDING_REVIEW)
         boolean canView = false;
 
-        // А) Ако потребителят е AUTHOR - даваме достъп само ако версията е негова
+        // A) If the user is AUTHOR - grant access only if the version is theirs
         if (user.getRoles().contains(Role.AUTHOR)) {
             if (v.getCreatedBy() != null && v.getCreatedBy().getId().equals(user.getId())) {
                 canView = true;
             }
         }
 
-        // Б) Ако потребителят е REVIEWER - даваме достъп до всичко, което чака за одобрение
+        // B) If the user is REVIEWER - grant access to everything that is pending review
         if (user.getRoles().contains(Role.REVIEWER)) {
             if (v.getStatus() == com.sap.project.backend.enums.Status.PENDING_REVIEW) {
                 canView = true;
