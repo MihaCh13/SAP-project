@@ -1,0 +1,23 @@
+@import 'tailwindcss';
+
+/*
+  Tailwind v4 uses the import above instead of separate directives.
+  Legacy equivalent:
+    @tailwind base;
+    @tailwind components;
+    @tailwind utilities;
+*/
+
+@layer base {
+  body {
+    margin: 0;
+    background-color: #f7f9fc;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  #root {
+    min-height: 100dvh;
+    width: 100%;
+  }
+}
