@@ -7,9 +7,7 @@ import {
   SAP_EMAIL_REGEX,
   isPasswordPolicyMet,
 } from '../utils/passwordValidation'
-
-/** Simulated taken usernames for demo (case-insensitive). */
-const TAKEN_USERNAMES = new Set(['taken', 'admin', 'sapuser'])
+import { createPendingAccountRequest } from '../lib/mockUsers'
 
 export default function AccountRequestView({ onCancel }) {
   const [firstName, setFirstName] = useState('')
@@ -67,7 +65,10 @@ export default function AccountRequestView({ onCancel }) {
       setUserErr('')
       return
     }
-    if (TAKEN_USERNAMES.has(u)) {
+    const exists = loadMockUsers().some(
+      (x) => String(x.username ?? '').trim().toLowerCase() === u,
+    )
+    if (exists) {
       setUserErr('This username is already taken')
     } else {
       setUserErr('')
@@ -101,13 +102,6 @@ export default function AccountRequestView({ onCancel }) {
     e.preventDefault()
     setEmailTouched(true)
     setConfirmErr('')
-
-    const uLower = username.trim().toLowerCase()
-    if (uLower && TAKEN_USERNAMES.has(uLower)) {
-      setUserErr('This username is already taken')
-      setShakeUser((n) => n + 1)
-      return
-    }
 
     const fe = {
       firstName: '',
@@ -163,7 +157,28 @@ export default function AccountRequestView({ onCancel }) {
     setFieldErr(fe)
 
     if (Object.values(fe).some(Boolean)) return
-    setSubmitted(true)
+    try {
+      createPendingAccountRequest({
+        firstName,
+        lastName,
+        email,
+        username,
+        password: tempPass,
+      })
+      setSubmitted(true)
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Could not submit request.'
+      if (msg === 'This email is already registered in the system.') {
+        setFieldErr((prev) => ({ ...prev, email: msg }))
+        setEmailErr(msg)
+        setShakeEmail((n) => n + 1)
+      } else if (msg === 'This username is already taken.') {
+        setUserErr(msg)
+        setShakeUser((n) => n + 1)
+      } else {
+        setUserErr(msg)
+      }
+    }
   }
 
   return (

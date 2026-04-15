@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { getDefaultMockDrafts, loadMockDrafts, documentAuthorDisplay } from '../lib/mockDrafts'
 import { getSession } from '../lib/session'
-import { approveDocument, rejectDocument } from '../lib/mockWorkflowService'
+import { approveDocument, canReviewDocumentAction, rejectDocument } from '../lib/mockWorkflowService'
 
 function escapeHtml(s) {
   return String(s ?? '')
@@ -113,9 +113,10 @@ export default function ReviewQueue() {
   function handleApprove() {
     if (!selected || !session) return
     const id = selected.id
-    const res = approveDocument(id, session)
-    if (!res.ok) {
-      setToast(res.message ?? 'Could not approve')
+    try {
+      approveDocument(id, session)
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Could not approve')
       return
     }
     setAllDrafts(loadMockDrafts())
@@ -129,12 +130,13 @@ export default function ReviewQueue() {
     if (!reason) return
     const id = selected.id
     const nowIso = new Date().toISOString()
-    const res = rejectDocument(id, session, reason, {
-      reviewerLabel: session.displayName ?? 'Reviewer',
-      timestampLabel: formatTimestamp(nowIso),
-    })
-    if (!res.ok) {
-      setToast(res.message ?? 'Could not reject')
+    try {
+      rejectDocument(id, session, reason, {
+        reviewerLabel: session.displayName ?? 'Reviewer',
+        timestampLabel: formatTimestamp(nowIso),
+      })
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Could not reject')
       return
     }
     setAllDrafts(loadMockDrafts())
@@ -173,6 +175,7 @@ export default function ReviewQueue() {
   }
 
   const author = selected ? documentAuthorDisplay(selected) : '—'
+  const canReviewSelected = Boolean(selected && session && canReviewDocumentAction(selected, session))
   const updatedAtLabel = selected?.updatedAt ? formatTimestamp(selected.updatedAt) : formatTimestamp()
   const bodyHtml = toViewerHtml(
     selected?.body && String(selected.body).trim().length > 0 ? selected.body : selected?.snippet ?? '',
@@ -223,7 +226,7 @@ export default function ReviewQueue() {
         </section>
 
         <section className="lg:col-span-2">
-          <div className="h-[calc(100vh-80px)] overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
+          <div className="flex h-[calc(100vh-80px)] flex-col rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
             <div ref={viewerTopRef} />
             <header className="border-b border-slate-100 px-6 py-5">
               <h2 className="text-2xl font-semibold tracking-tight text-slate-900">{selected?.title ?? ''}</h2>
@@ -249,20 +252,28 @@ export default function ReviewQueue() {
               <div className="sticky bottom-0 border-t border-slate-100 bg-white p-4">
                 {!rejectMode ? (
                   <div className="flex items-center justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setRejectMode(true)}
-                      className="inline-flex items-center justify-center rounded-xl border border-red-200 px-5 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50"
-                    >
-                      Reject
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleApprove}
-                      className="inline-flex items-center justify-center rounded-xl bg-green-100 px-5 py-2.5 text-sm font-semibold text-green-800 shadow-sm ring-1 ring-green-200/80 transition hover:bg-green-200 hover:text-green-950"
-                    >
-                      Approve
-                    </button>
+                    {canReviewSelected ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setRejectMode(true)}
+                          className="inline-flex items-center justify-center rounded-xl border border-red-200 px-5 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                        >
+                          Reject
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleApprove}
+                          className="inline-flex items-center justify-center rounded-xl bg-green-100 px-5 py-2.5 text-sm font-semibold text-green-800 shadow-sm ring-1 ring-green-200/80 transition hover:bg-green-200 hover:text-green-950"
+                        >
+                          Approve
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-right text-sm font-medium text-red-600">
+                        You cannot review your own document.
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-3">

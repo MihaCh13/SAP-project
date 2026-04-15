@@ -13,7 +13,7 @@ import {
   persistSession,
   setShowWelcomeFlag,
 } from '../lib/session'
-import { findMockUserByUsername } from '../lib/mockUsers'
+import { ensureUserCanLogin, findMockUserByUsername } from '../lib/mockUsers'
 
 /**
  * Login & account request. Successful auth persists session and navigates to /dashboard.
@@ -48,12 +48,10 @@ export default function LoginContainer() {
       setLoginBanner('Invalid username or password.')
       return
     }
-    if (!dirUser.isActive) {
-      setLoginBanner('Your access has been deactivated. Please contact an administrator.')
-      return
-    }
-    if (dirUser.isPending) {
-      setLoginBanner('Your account is pending administrator approval. You cannot sign in yet.')
+    try {
+      ensureUserCanLogin(dirUser)
+    } catch (error) {
+      setLoginBanner(error instanceof Error ? error.message : 'Authentication failed.')
       return
     }
     if (password !== getExpectedMockLoginPassword(username)) {

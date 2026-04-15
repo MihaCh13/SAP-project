@@ -1,6 +1,8 @@
-import { useEffect, useReducer, useRef, useState } from 'react'
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { loadMockDrafts } from '../../lib/mockDrafts'
 import { getMockUserAvatarDataUrl } from '../../lib/mockUsers'
-import { getSession } from '../../lib/session'
+import { getSession, onSessionUpdated } from '../../lib/session'
 import NotificationBell from './NotificationBell'
 
 const BADGE = {
@@ -65,9 +67,15 @@ export default function AppHeader({
   onMobileMenuToggle,
   mobileNavOpen = false,
 }) {
+  const navigate = useNavigate()
   const session = getSession()
   const searchRef = useRef(null)
+  const searchWrapRef = useRef(null)
   const [, refreshAvatar] = useReducer((s) => s + 1, 0)
+  const [, refreshSession] = useReducer((s) => s + 1, 0)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchTick, setSearchTick] = useState(0)
 
   useEffect(() => {
     function onUsersUpdated() {
@@ -77,16 +85,45 @@ export default function AppHeader({
     return () => window.removeEventListener('sap_dm_mock_users_updated', onUsersUpdated)
   }, [])
 
+  useEffect(() => onSessionUpdated(() => refreshSession()), [])
+
+  useEffect(() => {
+    function onDocsUpdated() {
+      setSearchTick((v) => v + 1)
+    }
+    window.addEventListener('sap_dm_mock_documents_updated', onDocsUpdated)
+    return () => window.removeEventListener('sap_dm_mock_documents_updated', onDocsUpdated)
+  }, [])
+
+  useEffect(() => {
+    function onPointerDown(e) {
+      if (!searchWrapRef.current?.contains(e.target)) {
+        setSearchOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [])
+
   useEffect(() => {
     function onKey(e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault()
         searchRef.current?.focus()
+        setSearchOpen(true)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  const matches = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return []
+    return loadMockDrafts()
+      .filter((d) => d.title.toLowerCase().includes(q))
+      .slice(0, 8)
+  }, [searchQuery, searchTick])
 
   const initials = (session?.displayName ?? '?')
     .split(/\s+/)
@@ -125,7 +162,7 @@ export default function AppHeader({
           <RoleBadges roles={session?.roles ?? []} />
         </div>
 
-        <div className="hidden max-w-md flex-1 md:block">
+        <div ref={searchWrapRef} className="relative hidden max-w-md flex-1 md:block">
           <label htmlFor="global-search" className="sr-only">
             Search documents
           </label>
@@ -133,9 +170,44 @@ export default function AppHeader({
             ref={searchRef}
             id="global-search"
             type="search"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value)
+              setSearchOpen(true)
+            }}
+            onFocus={() => setSearchOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setSearchOpen(false)
+            }}
             placeholder="Search documents... (Ctrl+K)"
             className="w-full rounded-xl border border-slate-200 bg-[#F7F9FC] px-[0.75rem] py-[0.5rem] text-[0.875rem] text-slate-900 outline-none ring-[#0056b3]/0 transition placeholder:text-slate-400 focus:border-[#0056b3]/40 focus:bg-white focus:ring-2 focus:ring-[#0056b3]/15"
           />
+          {searchOpen && searchQuery.trim() ? (
+            <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+              {matches.length === 0 ? (
+                <p className="px-3 py-2 text-sm text-slate-500">No matching documents.</p>
+              ) : (
+                <ul className="max-h-80 overflow-y-auto py-1">
+                  {matches.map((doc) => (
+                    <li key={doc.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchOpen(false)
+                          setSearchQuery('')
+                          navigate(`/new-document?id=${encodeURIComponent(doc.id)}`)
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
+                      >
+                        <p className="truncate font-medium">{doc.title}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{doc.status}</p>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 items-center gap-[0.25rem] sm:gap-[0.5rem]">

@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { Eye, EyeOff } from 'lucide-react'
 import { appendMockAuditLog } from '../lib/mockAuditLogs'
 import { loadMockUsers, persistMockUsers } from '../lib/mockUsers'
 import { getExpectedMockLoginPassword, getSession, persistMockPasswordAfterChange } from '../lib/session'
@@ -43,6 +44,9 @@ export default function PasswordModal({ open, onClose, onSuccess }) {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState(/** @type {string | null} */ (null))
+  const [showCurrent, setShowCurrent] = useState(false)
+  const [showNew, setShowNew] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const mockUser = useMemo(
     () => loadMockUsers().find((u) => u.id === session?.userId),
@@ -61,6 +65,9 @@ export default function PasswordModal({ open, onClose, onSuccess }) {
       setNewPassword('')
       setConfirmPassword('')
       setError(null)
+      setShowCurrent(false)
+      setShowNew(false)
+      setShowConfirm(false)
     }
   }, [open])
 
@@ -141,27 +148,47 @@ export default function PasswordModal({ open, onClose, onSuccess }) {
             <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-slate-600">Current password</span>
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  value={currentPassword}
-                  onChange={(e) => {
-                    setCurrentPassword(e.target.value)
-                    setError(null)
-                  }}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                />
+                <div className="relative">
+                  <input
+                    type={showCurrent ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    value={currentPassword}
+                    onChange={(e) => {
+                      setCurrentPassword(e.target.value)
+                      setError(null)
+                    }}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 pr-10 text-sm text-slate-900 outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrent((v) => !v)}
+                    aria-label={showCurrent ? 'Hide password' : 'Show password'}
+                    className="absolute inset-y-0 right-0 inline-flex items-center justify-center px-3 text-slate-500 transition hover:text-slate-700"
+                  >
+                    {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </label>
 
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-slate-600">New password</span>
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                />
+                <div className="relative">
+                  <input
+                    type={showNew ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 pr-10 text-sm text-slate-900 outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNew((v) => !v)}
+                    aria-label={showNew ? 'Hide password' : 'Show password'}
+                    className="absolute inset-y-0 right-0 inline-flex items-center justify-center px-3 text-slate-500 transition hover:text-slate-700"
+                  >
+                    {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </label>
 
               <div className="flex flex-wrap gap-2">
@@ -173,13 +200,23 @@ export default function PasswordModal({ open, onClose, onSuccess }) {
 
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-slate-600">Confirm password</span>
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirm ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 pr-10 text-sm text-slate-900 outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm((v) => !v)}
+                    aria-label={showConfirm ? 'Hide password' : 'Show password'}
+                    className="absolute inset-y-0 right-0 inline-flex items-center justify-center px-3 text-slate-500 transition hover:text-slate-700"
+                  >
+                    {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </label>
 
               {confirmPassword.length > 0 && newPassword !== confirmPassword ? (

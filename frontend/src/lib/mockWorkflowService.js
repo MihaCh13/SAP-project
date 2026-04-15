@@ -28,19 +28,41 @@ function canReview(session) {
   return Boolean(session.roles?.includes('REVIEWER') || session.roles?.includes('ADMIN'))
 }
 
+function validateSession(session) {
+  if (!session || !session.userId) {
+    throw new IllegalArgumentException('Error: User is null.')
+  }
+}
+
+function IllegalArgumentException(message) {
+  return new Error(message)
+}
+
+export function canReviewDocumentAction(doc, session) {
+  if (!doc || !session) return false
+  if (!canReview(session)) return false
+  return documentAuthorId(doc) !== session.userId
+}
+
 /**
  * @param {string} docId
  * @param {{ userId: string, displayName?: string, roles?: string[] }} session
  */
 export function submitDocumentForReview(docId, session) {
+  validateSession(session)
   const list = loadMockDrafts()
   const doc = list.find((d) => d.id === docId)
-  if (!doc) return { ok: false, message: 'Document not found.' }
+  if (!doc) {
+    throw new IllegalArgumentException('Error: Version not found.')
+  }
   if (doc.status !== 'DRAFT' && doc.status !== 'REJECTED') {
-    return { ok: false, message: 'Only drafts or rejected documents can be submitted.' }
+    throw new Error('Error: Only DRAFT or REJECTED documents can be submitted.')
   }
   if (!canAuthorSubmit(session, doc)) {
-    return { ok: false, message: 'You do not have permission to submit this document.' }
+    if (!session.roles?.includes('AUTHOR')) {
+      throw new Error('Error: Only authors can submit for review.')
+    }
+    throw new Error("Error: You cannot submit someone else's document.")
   }
   const now = new Date().toISOString()
   const next = list.map((d) =>
@@ -78,14 +100,20 @@ export function submitDocumentForReview(docId, session) {
  * @param {{ userId: string, displayName?: string, roles?: string[] }} session
  */
 export function approveDocument(docId, session) {
+  validateSession(session)
   if (!canReview(session)) {
-    return { ok: false, message: 'Reviewer permissions required.' }
+    throw new Error('Error: Only REVIEWER role can approve.')
   }
   const list = loadMockDrafts()
   const doc = list.find((d) => d.id === docId)
-  if (!doc) return { ok: false, message: 'Document not found.' }
+  if (!doc) {
+    throw new IllegalArgumentException('Error: Version not found.')
+  }
+  if (documentAuthorId(doc) === session.userId) {
+    throw new Error('Error: You cannot approve your own document!')
+  }
   if (doc.status !== 'SUBMITTED') {
-    return { ok: false, message: 'Only submitted documents can be approved.' }
+    throw new Error('Error: Only PENDING_REVIEW status can be approved.')
   }
   const now = new Date().toISOString()
   const next = list.map((d) => (d.id === docId ? { ...d, status: 'APPROVED', updatedAt: now, lastEditedLabel: 'Just now' } : d))
@@ -113,14 +141,20 @@ export function approveDocument(docId, session) {
  * @param {{ reviewerLabel: string, timestampLabel: string }} feedbackMeta
  */
 export function rejectDocument(docId, session, comment, feedbackMeta) {
+  validateSession(session)
   if (!canReview(session)) {
-    return { ok: false, message: 'Reviewer permissions required.' }
+    throw new Error('Error: Only REVIEWER role can reject.')
   }
   const list = loadMockDrafts()
   const doc = list.find((d) => d.id === docId)
-  if (!doc) return { ok: false, message: 'Document not found.' }
+  if (!doc) {
+    throw new IllegalArgumentException('Error: Version not found.')
+  }
+  if (documentAuthorId(doc) === session.userId) {
+    throw new Error('Error: You cannot reject your own work!')
+  }
   if (doc.status !== 'SUBMITTED') {
-    return { ok: false, message: 'Only submitted documents can be rejected.' }
+    throw new Error('Error: Only PENDING_REVIEW status can be rejected.')
   }
   const now = new Date().toISOString()
   const feedback = {

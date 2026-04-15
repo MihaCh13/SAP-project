@@ -144,9 +144,10 @@ export default function MyDrafts() {
       showToast('Sign in required.')
       return
     }
-    const res = submitDocumentForReview(id, session)
-    if (!res.ok) {
-      showToast(res.message ?? 'Submit failed')
+    try {
+      submitDocumentForReview(id, session)
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Submit failed')
       return
     }
     setDrafts(loadMockDrafts())

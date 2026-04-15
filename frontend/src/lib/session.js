@@ -5,6 +5,7 @@ const WELCOME_KEY = 'sap_dm_show_welcome'
 
 /** Mock auth: persisted per username after first-time password change (demo only). */
 const DEFAULT_MOCK_PASSWORD = 'SapDemo1!'
+const SESSION_UPDATED_EVENT = 'sap_dm_session_updated'
 
 function normalizeMockUsername(username) {
   return String(username ?? '')
@@ -73,11 +74,29 @@ export function getSession() {
  */
 export function persistSession(session) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(session))
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(SESSION_UPDATED_EVENT))
+  }
 }
 
 export function clearSession() {
   localStorage.removeItem(STORAGE_KEY)
   sessionStorage.removeItem(WELCOME_KEY)
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(SESSION_UPDATED_EVENT))
+  }
+}
+
+export function notifySessionUpdated() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(SESSION_UPDATED_EVENT))
+  }
+}
+
+export function onSessionUpdated(listener) {
+  if (typeof window === 'undefined') return () => {}
+  window.addEventListener(SESSION_UPDATED_EVENT, listener)
+  return () => window.removeEventListener(SESSION_UPDATED_EVENT, listener)
 }
 
 export function setShowWelcomeFlag() {

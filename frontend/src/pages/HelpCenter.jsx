@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useId, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { getSession } from '../lib/session'
+import { submitHelpInquiryToAdmins } from '../lib/mockUsers'
 
 const FAQ_ITEMS = [
   {
@@ -77,9 +79,9 @@ function FaqAccordionItem({ item, open, onToggle }) {
 }
 
 /**
- * @param {{ open: boolean, onClose: () => void }} props
+ * @param {{ open: boolean, onClose: () => void, onSubmitInquiry: (subject: string, message: string) => void }} props
  */
-function InquiryModal({ open, onClose }) {
+function InquiryModal({ open, onClose, onSubmitInquiry }) {
   const titleId = useId()
   const onCloseRef = useCallback(() => onClose(), [onClose])
 
@@ -126,7 +128,9 @@ function InquiryModal({ open, onClose }) {
               onSubmit={(e) => {
                 e.preventDefault()
                 const fd = new FormData(e.currentTarget)
-                console.log('Inquiry (mock):', Object.fromEntries(fd.entries()))
+                const subject = String(fd.get('subject') ?? '').trim()
+                const message = String(fd.get('message') ?? '').trim()
+                onSubmitInquiry(subject, message)
                 onClose()
               }}
             >
@@ -175,9 +179,19 @@ function InquiryModal({ open, onClose }) {
 export default function HelpCenter() {
   const [openFaqId, setOpenFaqId] = useState(/** @type {string | null} */ (null))
   const [inquiryOpen, setInquiryOpen] = useState(false)
+  const session = getSession()
 
   function scrollToSection(id) {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  function handleSubmitInquiry(subject, message) {
+    submitHelpInquiryToAdmins({
+      actorUserId: session?.userId,
+      actorDisplayName: session?.displayName,
+      subject,
+      message,
+    })
   }
 
   return (
@@ -255,7 +269,11 @@ export default function HelpCenter() {
         </button>
       </section>
 
-      <InquiryModal open={inquiryOpen} onClose={() => setInquiryOpen(false)} />
+      <InquiryModal
+        open={inquiryOpen}
+        onClose={() => setInquiryOpen(false)}
+        onSubmitInquiry={handleSubmitInquiry}
+      />
     </div>
   )
 }

@@ -1,5 +1,6 @@
+import { useEffect, useReducer } from 'react'
 import { NavLink } from 'react-router-dom'
-import { getSession } from '../../lib/session'
+import { getSession, onSessionUpdated } from '../../lib/session'
 
 const linkBase =
   'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors'
@@ -51,6 +52,9 @@ export default function AppSidebar({
   onOpenSettings = () => {},
   onRequestLogout = () => {},
 }) {
+  const [, refreshSession] = useReducer((s) => s + 1, 0)
+  useEffect(() => onSessionUpdated(() => refreshSession()), [])
+
   const session = getSession()
   const roles = session?.roles ?? []
   const isAuthor = roles.includes('AUTHOR')

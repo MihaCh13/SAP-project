@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-  <component name="dataSourceStorageLocal" created-in="IU-251.27812.49">
-    <data-source name="sapdb" uuid="29573df7-344c-49fd-b6e2-b8bd209f8004">
-      <database-info product="" version="" jdbc-version="" driver-name="" driver-version="" dbms="H2" />
-      <schema-mapping />
-    </data-source>
-  </component>
-</project>

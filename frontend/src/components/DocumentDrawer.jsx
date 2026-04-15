@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 
 /**
  * Slide-out quick view for a public document.
- * @param {{ doc: PublicDoc | null, onClose: () => void, onDownload: (format: 'PDF' | 'TXT') => void }} props
+ * @param {{ doc: PublicDoc | null, onClose: () => void, onDownload: (doc: PublicDoc, format: 'PDF' | 'TXT') => void }} props
  */
 export default function DocumentDrawer({ doc, onClose, onDownload }) {
   const onCloseRef = useRef(onClose)
@@ -76,27 +76,24 @@ export default function DocumentDrawer({ doc, onClose, onDownload }) {
 
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Content</p>
-              <div className="mt-4 max-w-none text-base leading-relaxed text-slate-700">
-                {doc.content.split(/\n\n+/).map((para, i) => (
-                  <p key={i} className="mb-5 last:mb-0">
-                    {para}
-                  </p>
-                ))}
-              </div>
+              <div
+                className="prose mt-4 max-w-none text-slate-700"
+                dangerouslySetInnerHTML={{ __html: doc.content || '<p>No content provided.</p>' }}
+              />
             </div>
 
             <div className="sticky bottom-0 shrink-0 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur-sm">
               <div className="flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
-                  onClick={() => onDownload('PDF')}
+                  onClick={() => onDownload(doc, 'PDF')}
                   className="flex-1 rounded-xl bg-[#0056b3] px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#004494]"
                 >
                   Download as PDF
                 </button>
                 <button
                   type="button"
-                  onClick={() => onDownload('TXT')}
+                  onClick={() => onDownload(doc, 'TXT')}
                   className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
                 >
                   Download as TXT

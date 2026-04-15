@@ -1,84 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { BookOpen, FileDown, FileText } from 'lucide-react'
 import DocumentDrawer from '../components/DocumentDrawer'
+import { documentAuthorDisplay, loadMockDrafts } from '../lib/mockDrafts'
+import { downloadFile } from '../utils/downloadFile'
 
 const cardShadow = 'shadow-[0_4px_28px_-6px_rgba(15,23,42,0.1)]'
 
 /** @typedef {{ id: string, title: string, author: string, approvedAt: string, approvedLabel: string, content: string, status: 'APPROVED' }} PublicDoc */
-
-/** @type {PublicDoc[]} */
-const MOCK_PUBLIC_DOCUMENTS = [
-  {
-    id: 'ph-1',
-    title: 'Corporate Information Security Standard',
-    author: 'Morgan Ellis',
-    approvedAt: '2026-04-11T14:30:00.000Z',
-    approvedLabel: 'Apr 11, 2026',
-    status: 'APPROVED',
-    content:
-      'This standard defines baseline controls for endpoints, identity, and data classification across all business units. Controls are aligned to common assurance frameworks and are reviewed annually or when material systems change.\n\nAll employees and contractors must acknowledge receipt of updates within thirty days of publication. Exceptions require documented risk acceptance by the Chief Information Security Officer.\n\nImplementation guidance, including configuration templates and evidence collection procedures, is maintained in the internal governance portal.',
-  },
-  {
-    id: 'ph-2',
-    title: 'Sustainable Procurement Playbook',
-    author: 'Priya Nandakumar',
-    approvedAt: '2026-03-28T09:15:00.000Z',
-    approvedLabel: 'Mar 28, 2026',
-    status: 'APPROVED',
-    content:
-      'The playbook describes how sourcing teams evaluate suppliers on environmental and social criteria alongside cost and quality. It includes scoring rubrics, sample RFP language, and escalation paths for high-risk categories.\n\nCategory managers should use this document alongside the central vendor master data policy. Regional supplements may add local regulatory requirements without lowering global minimums.\n\nQuarterly metrics on supplier engagement and corrective actions are published for leadership review.',
-  },
-  {
-    id: 'ph-3',
-    title: 'Workplace Health & Safety Directive',
-    author: 'Jordan Lee',
-    approvedAt: '2026-04-02T16:00:00.000Z',
-    approvedLabel: 'Apr 2, 2026',
-    status: 'APPROVED',
-    content:
-      'This directive establishes minimum expectations for hazard identification, incident reporting, and emergency readiness in all occupied facilities. Site leaders are accountable for local risk registers and closure of corrective actions.\n\nTraining intervals and competency checks are defined by role family. Contractors performing work on company premises must meet equivalent requirements through their employer programs.\n\nSerious incidents must be escalated within one hour through the established command structure.',
-  },
-  {
-    id: 'ph-4',
-    title: 'Customer Data Handling Reference',
-    author: 'Alex Chen',
-    approvedAt: '2026-01-19T11:45:00.000Z',
-    approvedLabel: 'Jan 19, 2026',
-    status: 'APPROVED',
-    content:
-      'The reference summarizes lawful bases for processing, retention defaults, and cross-border transfer safeguards used in customer-facing systems. Product and engineering teams should consult privacy counsel before introducing new data elements.\n\nData minimization and purpose limitation principles apply to analytics pipelines and model training datasets. Pseudonymization is expected where direct identifiers are not strictly necessary.\n\nSubject rights workflows are owned by the privacy operations team with defined service levels.',
-  },
-  {
-    id: 'ph-5',
-    title: 'Finance Close Calendar & Cutover Rules',
-    author: 'Sam Rivera',
-    approvedAt: '2026-04-08T07:00:00.000Z',
-    approvedLabel: 'Apr 8, 2026',
-    status: 'APPROVED',
-    content:
-      'This publication lists period-end milestones, system freeze windows, and delegation of authority for journal approvals. Controllers must confirm completeness checklists before sign-off on consolidated statements.\n\nIntercompany eliminations and currency translation procedures reference the enterprise chart of accounts and FX policy addendum. Local statutory adjustments are documented separately per entity.\n\nAudit trail requirements for manual postings are unchanged from the prior fiscal year.',
-  },
-  {
-    id: 'ph-6',
-    title: 'Brand Voice & Editorial Guidelines',
-    author: 'Taylor Brooks',
-    approvedAt: '2025-12-05T13:20:00.000Z',
-    approvedLabel: 'Dec 5, 2025',
-    status: 'APPROVED',
-    content:
-      'Guidelines describe tone, typography, and accessibility expectations for public communications and product copy. Examples illustrate inclusive language and plain-language thresholds for regulated disclosures.\n\nTemplates for press releases, blog posts, and in-product announcements are versioned in the design system repository. Localization teams adapt examples while preserving mandatory claims.\n\nApprovals follow the marketing operations workflow with staged reviewers based on audience reach.',
-  },
-  {
-    id: 'ph-7',
-    title: 'Remote Work & Equipment Policy',
-    author: 'Morgan Ellis',
-    approvedAt: '2026-02-14T10:30:00.000Z',
-    approvedLabel: 'Feb 14, 2026',
-    status: 'APPROVED',
-    content:
-      'The policy clarifies eligibility, ergonomic stipends, and acceptable use of company-issued devices for hybrid arrangements. Managers document team agreements on core collaboration hours and on-site expectations.\n\nCross-border remote arrangements require HR and tax review before commencement. Insurance coverage may differ by jurisdiction and role.\n\nAnnual attestation confirms understanding of security obligations for home networks and physical storage of assets.',
-  },
-]
 
 const inputFocus =
   'rounded-xl border border-slate-200 bg-white text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100'
@@ -106,6 +35,7 @@ function DocListIcon() {
 }
 
 export default function PublicHub() {
+  const [docsTick, setDocsTick] = useState(0)
   const [query, setQuery] = useState('')
   const [sortOrder, setSortOrder] = useState(
     /** @type {'newest' | 'oldest' | 'titleAsc' | 'titleDesc'} */ ('newest'),
@@ -119,9 +49,35 @@ export default function PublicHub() {
     return () => clearTimeout(t)
   }, [toast])
 
+  useEffect(() => {
+    function onDocsUpdated() {
+      setDocsTick((v) => v + 1)
+    }
+    window.addEventListener('sap_dm_mock_documents_updated', onDocsUpdated)
+    return () => window.removeEventListener('sap_dm_mock_documents_updated', onDocsUpdated)
+  }, [])
+
+  const approvedDocs = useMemo(() => {
+    return loadMockDrafts()
+      .filter((d) => d.status === 'APPROVED')
+      .map((d) => ({
+        id: d.id,
+        title: d.title,
+        author: documentAuthorDisplay(d),
+        approvedAt: d.updatedAt,
+        approvedLabel: new Date(d.updatedAt).toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+        content: String(d.body ?? d.snippet ?? ''),
+        status: 'APPROVED',
+      }))
+  }, [docsTick])
+
   const filteredSorted = useMemo(() => {
     const q = query.trim().toLowerCase()
-    let list = MOCK_PUBLIC_DOCUMENTS.filter(
+    let list = approvedDocs.filter(
       (d) =>
         !q ||
         d.title.toLowerCase().includes(q) ||
@@ -139,11 +95,12 @@ export default function PublicHub() {
       return sortOrder === 'newest' ? tb - ta : ta - tb
     })
     return list
-  }, [query, sortOrder])
+  }, [approvedDocs, query, sortOrder])
 
-  function handleDownload(format) {
+  function handleDownload(doc, format) {
+    if (!doc) return
     const label = format === 'PDF' ? 'PDF' : 'TXT'
-    console.log(`Downloading ${label}...`)
+    downloadFile(doc.content, doc.title, format)
     setToast(`Downloading ${label}...`)
   }
 
@@ -236,29 +193,40 @@ export default function PublicHub() {
                   </span>
                 </div>
               </div>
-              <div className="flex shrink-0 flex-col items-end gap-2 md:relative md:h-11 md:w-44">
-                <span className="text-sm text-slate-500 md:absolute md:right-0 md:transition-opacity md:duration-200 md:group-hover:pointer-events-none md:group-hover:opacity-0">
-                  {doc.approvedLabel}
-                </span>
-                <div className="flex gap-2 md:absolute md:right-0 md:pointer-events-none md:opacity-0 md:transition-opacity md:duration-200 md:group-hover:pointer-events-auto md:group-hover:opacity-100">
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                <span className="text-sm text-slate-500">{doc.approvedLabel}</span>
+                <div className="flex flex-wrap justify-end gap-2">
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleDownload('PDF')
+                      setActiveDoc(doc)
                     }}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold tracking-wide text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-900"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold tracking-wide text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-900"
                   >
+                    <BookOpen className="h-3.5 w-3.5" />
+                    Read
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDownload(doc, 'PDF')
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold tracking-wide text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-900"
+                  >
+                    <FileDown className="h-3.5 w-3.5" />
                     PDF
                   </button>
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleDownload('TXT')
+                      handleDownload(doc, 'TXT')
                     }}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold tracking-wide text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-900"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold tracking-wide text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-900"
                   >
+                    <FileText className="h-3.5 w-3.5" />
                     TXT
                   </button>
                 </div>

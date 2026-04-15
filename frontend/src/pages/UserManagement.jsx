@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { appendMockAuditLog } from '../lib/mockAuditLogs'
-import { loadMockUsers, persistMockUsers, normalizeRolesForDisplay } from '../lib/mockUsers'
-import { getSession } from '../lib/session'
+import {
+  activateUserByAdmin,
+  approvePendingUserByAdmin,
+  deactivateUserByAdmin,
+  loadMockUsers,
+  normalizeRolesForDisplay,
+  setUserRolesByAdmin,
+} from '../lib/mockUsers'
+import { getSession, persistSession } from '../lib/session'
 
 const ELEVATED = ['ADMIN', 'AUTHOR', 'REVIEWER']
 
@@ -318,91 +324,63 @@ export default function UserManagement() {
     return list
   }, [users, search, roleFilter])
 
-  function patchUser(userId, patch) {
-    const list = loadMockUsers()
-    const next = list.map((u) => (u.id === userId ? { ...u, ...patch } : u))
-    persistMockUsers(next)
-    refresh()
-  }
-
   function handleRolesChange(userId, roles) {
-    const prev = loadMockUsers().find((u) => u.id === userId)
-    patchUser(userId, { roles })
-    appendMockAuditLog({
-      actorUserId: session?.userId,
-      actorDisplayName: session?.displayName ?? 'Administrator',
-      action: `Updated roles for ${prev?.name ?? userId}`,
-      category: 'USER',
-      type: 'SUCCESS',
-      details: { targetUserId: userId, oldValue: { roles: prev?.roles }, newValue: { roles } },
-    })
+    try {
+      const currentUser = loadMockUsers().find((u) => u.id === userId)
+      const hadAdmin = Boolean((currentUser?.roles || []).map((r) => String(r).toUpperCase()).includes('ADMIN'))
+      const willHaveAdmin = Boolean((roles || []).map((r) => String(r).toUpperCase()).includes('ADMIN'))
+      const isSelfDemotion = session?.userId === userId && hadAdmin && !willHaveAdmin
+      if (isSelfDemotion) {
+        const ok = window.confirm('Are you sure you want to remove your Admin privileges?')
+        if (!ok) return
+      }
+      setUserRolesByAdmin(session, userId, roles)
+      if (session?.userId === userId) {
+        persistSession({
+          ...session,
+          roles: normalizeRolesForDisplay(roles),
+        })
+      }
+      refresh()
+      setToast('Roles updated.')
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Failed to update roles.')
+    }
   }
 
   function handleDeactivate(userId) {
-    const list = loadMockUsers()
-    const target = list.find((u) => u.id === userId)
-    const next = list.map((u) =>
-      u.id === userId ? { ...u, isActive: false, isPending: false } : u,
-    )
-    persistMockUsers(next)
-    setEditingUser(null)
-    setUsers(next)
-    setToast('User deactivated.')
-    appendMockAuditLog({
-      actorUserId: session?.userId,
-      actorDisplayName: session?.displayName ?? 'Administrator',
-      action: `Admin deactivated ${target?.name ?? userId}`,
-      category: 'ADMIN',
-      type: 'DANGER',
-      details: {
-        targetUserId: userId,
-        oldValue: { isActive: target?.isActive },
-        newValue: { isActive: false },
-      },
-    })
+    try {
+      deactivateUserByAdmin(session, userId)
+      setEditingUser(null)
+      refresh()
+      setToast('User deactivated.')
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Failed to deactivate user.')
+    }
   }
 
   function handleReactivate(userId) {
-    const list = loadMockUsers()
-    const target = list.find((u) => u.id === userId)
-    const next = list.map((u) => (u.id === userId ? { ...u, isActive: true } : u))
-    persistMockUsers(next)
-    setEditingUser(null)
-    setUsers(next)
-    setToast('User account reactivated successfully.')
-    appendMockAuditLog({
-      actorUserId: session?.userId,
-      actorDisplayName: session?.displayName ?? 'Administrator',
-      action: `Reactivated user ${target?.name ?? userId}`,
-      category: 'USER',
-      type: 'SUCCESS',
-      details: {
-        targetUserId: userId,
-        oldValue: { isActive: false },
-        newValue: { isActive: true },
-      },
-    })
+    try {
+      activateUserByAdmin(session, userId)
+      setEditingUser(null)
+      refresh()
+      setToast('User account reactivated successfully.')
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Failed to reactivate user.')
+    }
   }
 
   function approvePending(userId, selectedRoles) {
     const upper = selectedRoles.map((x) => String(x).toUpperCase())
     const elev = [...new Set(upper.filter((x) => ELEVATED.includes(x)))]
     const finalRoles = elev.length > 0 ? elev : upper.includes('READER') ? [] : []
-    const pendingUser = loadMockUsers().find((u) => u.id === userId)
-    patchUser(userId, { isPending: false, isActive: true, roles: finalRoles })
-    setToast('User approved and profile created.')
-    appendMockAuditLog({
-      actorUserId: session?.userId,
-      actorDisplayName: session?.displayName ?? 'Administrator',
-      action: `Approved access request for ${pendingUser?.name ?? userId}`,
-      category: 'USER',
-      type: 'SUCCESS',
-      details: {
-        targetUserId: userId,
-        oldValue: { isPending: true, roles: pendingUser?.roles },
-        newValue: { isPending: false, isActive: true, roles: finalRoles },
-      },
-    })
+    try {
+      approvePendingUserByAdmin(session, userId, finalRoles)
+      refresh()
+      setToast('User approved and profile created.')
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Failed to approve user.')
+    }
   }
 
   if (!isAdmin) {
