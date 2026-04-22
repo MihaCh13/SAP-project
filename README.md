@@ -2,7 +2,7 @@
 Document Version Control System (DVCS) designed for collaborative document management. Features include role-based access (Author, Reviewer, Reader, Admin), version history tracking, approval workflows, and client-server architecture. Developed as part of a SAP course project.
 
 ## 📝 Project Description
-
+ 
 In many organizations, documents undergo frequent changes by multiple users. The lack of control leads to information loss and confusion regarding which is the latest up-to-date version.
 
 This project is a software solution for document version control that ensures traceability, security, and a proper workflow through roles and approvals.
