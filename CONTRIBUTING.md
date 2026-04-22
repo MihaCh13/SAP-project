@@ -1,24 +1,24 @@
 # 🤝 Contribution Guidelines
 
-## 📌 Основни правила
+## 📌 Core Rules
 
-* ❌ НЕ се работи директно в `main` branch
-* ✅ Всички промени минават през Pull Request (PR)
-* ✅ Всеки PR трябва да има поне 1 одобрение
+* ❌ DO NOT work directly in the `main` branch
+* ✅ All changes must go through a Pull Request (PR)
+* ✅ Every PR requires at least 1 approval
 
 ---
 
-## 🌿 Работа с branch-ове
+## 🌿 Branching Strategy
 
-Всеки разработчик създава собствен branch:
+Every developer must create their own branch:
 
-Примери:
+Examples:
 
 * `feature/login`
 * `feature/database`
 * `bugfix/navbar`
 
-Създаване на branch:
+Creating a branch:
 
 ```
 git checkout -b feature/your-feature-name
@@ -28,59 +28,59 @@ git checkout -b feature/your-feature-name
 
 ## 🔄 Workflow
 
-1. Вземи последната версия:
+1. Get the latest version:
 
 ```
 git pull origin main
 ```
 
-2. Създай branch:
+2. Create a branch:
 
 ```
 git checkout -b feature/your-task
 ```
 
-3. Направи промени и commit:
+3. Make changes and commit:
 
 ```
 git add .
 git commit -m "Describe your change"
 ```
 
-4. Push към GitHub:
+4. Push to GitHub:
 
 ```
 git push origin feature/your-task
 ```
 
-5. Създай Pull Request в GitHub
+5. Create a Pull Request in GitHub
 
 ---
 
 ## 👀 Code Review
 
-* Всеки Pull Request трябва да бъде одобрен от поне 1 човек
-* Ако има коментари → трябва да бъдат разрешени преди merge
-* Ако се добавят нови commit-и → одобрението се нулира
+* Every Pull Request must be approved by at least 1 person
+* If there are comments → they must be resolved before merging
+* If new commits are added → the approval is reset
 
 ---
 
-## 🚫 Забранени действия
+## 🚫 Prohibited Actions
 
-* ❌ Direct push към `main`
-* ❌ Force push към `main`
-* ❌ Изтриване на `main` branch
-
----
-
-## 💡 Добри практики
-
-* Пиши ясни commit съобщения
-* Работи по малки задачи (малки PR-и)
-* Комуникирай с екипа при промени
+* ❌ Direct push to `main`
+* ❌ Force push to `main`
+* ❌ Deleting the `main` branch
 
 ---
 
-## 🧠 Цел
+## 💡 Best Practices
 
-Да поддържаме стабилен, четим и безопасен код за всички 🚀
+* Write clear commit messages
+* Work on small tasks (small PRs)
+* Communicate with the team when making changes
+
+---
+
+## 🧠 Goal
+
+To maintain stable, readable, and safe code for everyone 🚀
